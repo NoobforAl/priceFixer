@@ -8,6 +8,12 @@ import { PricePatterns, PriceMatch } from './pricePatterns';
 import { isKnownShoppingSite, isShopifyStore, getShoppingSiteName } from './shopping-sites';
 import { getSitePattern, getPriceElements, SitePattern } from './site-patterns';
 import { CompiledRules, compileRules, normalizeRules } from './customRules';
+import {
+  detectPaymentPage,
+  isBlockedSite,
+  normalizeBlockedSites,
+  normalizeDomain,
+} from './siteGuard';
 
 type DisplayMode = 'replace' | 'highlight';
 
@@ -111,6 +117,16 @@ export class PriceFixerContent {
   private siteEnabled = true;
   /** User pressed Restore on this site: stay hands-off for the rest of the browser session. */
   private sitePaused = false;
+  /** Domains the user blocked from the popup (storage.sync.blockedSites). */
+  private blockedSites: string[] = [];
+  private siteBlocked = false;
+  /** Leave checkout / payment pages untouched (storage.sync.pauseOnPayment, default on). */
+  private pauseOnPayment = true;
+  private paymentPage = false;
+  private paymentReason: string | null = null;
+  private lastHref = '';
+  private lastPaymentCheck = 0;
+  private destroyed = false;
   private isProcessing = false;
   private displayMode: DisplayMode = 'highlight';
   private priceChanges: PriceChange[] = [];
@@ -135,12 +151,22 @@ export class PriceFixerContent {
   }
 
   private get isEnabled(): boolean {
-    return this.globalEnabled && this.siteEnabled && !this.sitePaused;
+    return (
+      this.globalEnabled &&
+      this.siteEnabled &&
+      !this.sitePaused &&
+      !this.siteBlocked &&
+      !(this.pauseOnPayment && this.paymentPage)
+    );
   }
 
   private async init(): Promise<void> {
     this.detectShoppingSite();
+    this.checkPaymentPage();
     await this.loadSettings();
+    if (this.destroyed) {
+      return;
+    }
 
     if (this.isEnabled) {
       this.processPage(true);
@@ -162,6 +188,21 @@ export class PriceFixerContent {
     }
   }
 
+  /**
+   * Re-evaluate the payment-page signal. Cheap enough to run on every
+   * mutation batch, which is what catches single-page checkouts that swap in
+   * a card form without a navigation.
+   */
+  private checkPaymentPage(): boolean {
+    this.lastHref = window.location.href;
+    this.lastPaymentCheck = Date.now();
+    const signal = detectPaymentPage();
+    const changed = signal.payment !== this.paymentPage;
+    this.paymentPage = signal.payment;
+    this.paymentReason = signal.reason;
+    return changed;
+  }
+
   // ─── Settings & stats ───────────────────────────────────────────────
 
   private async loadSettings(): Promise<void> {
@@ -175,6 +216,8 @@ export class PriceFixerContent {
         'displayMode',
         'siteSettings',
         'customRules',
+        'blockedSites',
+        'pauseOnPayment',
       ]);
       this.applySettings(result);
       this.applyRules(result.customRules);
@@ -195,6 +238,9 @@ export class PriceFixerContent {
     if (site?.mode) {
       this.displayMode = site.mode;
     }
+    this.blockedSites = normalizeBlockedSites(result.blockedSites);
+    this.siteBlocked = isBlockedSite(window.location.hostname, this.blockedSites);
+    this.pauseOnPayment = result.pauseOnPayment !== false;
   }
 
   public applyRules(raw: unknown): void {
@@ -223,6 +269,8 @@ export class PriceFixerContent {
         globalEnabled: this.globalEnabled,
         displayMode: this.displayMode,
         siteSettings: { [this.currentDomain]: { enabled: this.siteEnabled } },
+        blockedSites: this.blockedSites,
+        pauseOnPayment: this.pauseOnPayment,
       };
       for (const key of Object.keys(changes)) {
         merged[key] = changes[key].newValue;
@@ -303,6 +351,21 @@ export class PriceFixerContent {
     } catch {
       // Storage not available
     }
+  }
+
+  /** Add or remove a domain (default: this site) from the blocklist. */
+  private setBlocked(blocked: boolean, domain = this.currentDomain): void {
+    const target = normalizeDomain(domain);
+    if (!target) {
+      return;
+    }
+    const list = this.blockedSites.filter(d => d !== target);
+    if (blocked) {
+      list.push(target);
+    }
+    this.blockedSites = list;
+    this.siteBlocked = isBlockedSite(window.location.hostname, list);
+    this.saveSetting({ blockedSites: list });
   }
 
   private async saveStats(changes: PriceChange[]): Promise<void> {
@@ -1002,7 +1065,23 @@ export class PriceFixerContent {
 
   private setupMutationObserver(): void {
     this.observer = new MutationObserver(mutations => {
-      if (!this.isEnabled || this.isProcessing) {
+      if (this.isProcessing) {
+        return;
+      }
+      // A single-page checkout can turn the current page into a payment page
+      // (new URL or a card form) without reloading. The DOM check is
+      // throttled; a URL change is checked immediately.
+      const navigated = window.location.href !== this.lastHref;
+      const due = !this.paymentPage && Date.now() - this.lastPaymentCheck > 1000;
+      if (this.pauseOnPayment && (navigated || due) && this.checkPaymentPage()) {
+        if (this.paymentPage) {
+          this.restoreOriginal();
+          return;
+        }
+        this.reprocessPage();
+        return;
+      }
+      if (!this.isEnabled) {
         return;
       }
 
@@ -1063,6 +1142,11 @@ export class PriceFixerContent {
       globalEnabled: this.globalEnabled,
       siteEnabled: this.siteEnabled,
       sitePaused: this.sitePaused,
+      siteBlocked: this.siteBlocked,
+      blockedSites: this.blockedSites,
+      pauseOnPayment: this.pauseOnPayment,
+      paymentPage: this.paymentPage,
+      paymentReason: this.paymentReason,
       processedCount: this.pricesRounded,
       displayMode: this.displayMode,
       changes: this.priceChanges,
@@ -1078,6 +1162,8 @@ export class PriceFixerContent {
       action?: string;
       mode?: DisplayMode;
       enabled?: boolean;
+      blocked?: boolean;
+      domain?: string;
     };
     switch (message.action) {
       case 'toggle':
@@ -1122,6 +1208,30 @@ export class PriceFixerContent {
         if (enabled) {
           this.setSitePaused(false);
         }
+        if (this.isEnabled) {
+          this.reprocessPage();
+        } else {
+          this.restoreOriginal();
+        }
+        sendResponse({ success: true, ...this.status() });
+        break;
+      }
+
+      case 'setBlocked': {
+        this.setBlocked(message.blocked === true, message.domain || this.currentDomain);
+        if (this.isEnabled) {
+          this.reprocessPage();
+        } else {
+          this.restoreOriginal();
+        }
+        sendResponse({ success: true, ...this.status() });
+        break;
+      }
+
+      case 'setPauseOnPayment': {
+        this.pauseOnPayment = message.enabled !== false;
+        this.saveSetting({ pauseOnPayment: this.pauseOnPayment });
+        this.checkPaymentPage();
         if (this.isEnabled) {
           this.reprocessPage();
         } else {
@@ -1191,6 +1301,7 @@ export class PriceFixerContent {
   }
 
   public destroy(): void {
+    this.destroyed = true;
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;

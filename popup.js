@@ -43,6 +43,146 @@ class PopupController {
     on('noticeAction', () => this.enableOnThisSite());
     on('rulesToggle', () => this.toggleRules());
     on('rulesSave', () => this.saveRules());
+    on('securityToggle', () => this.toggleSecurity());
+    on('paymentSwitch', () =>
+      this.setPauseOnPayment(!(this.status ? this.status.pauseOnPayment !== false : true))
+    );
+    on('blockSiteBtn', () =>
+      this.setBlocked(this.domain(), !(this.status && this.status.siteBlocked))
+    );
+    on('blockAddBtn', () => this.addBlockedFromInput());
+    document.getElementById('blockInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.addBlockedFromInput();
+      }
+    });
+  }
+
+  // ─── Security: payment pause + blocklist ────────────────────────────
+
+  async toggleSecurity() {
+    const toggle = document.getElementById('securityToggle');
+    const panel = document.getElementById('securityPanel');
+    const open = panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      await this.loadBlockedSites();
+    }
+  }
+
+  /** "https://www.Shop.com/x" or "shop.com" → "shop.com"; "" when invalid. */
+  normalizeDomain(input) {
+    let value = String(input || '')
+      .trim()
+      .toLowerCase();
+    if (/^[a-z]+:\/\//.test(value)) {
+      try {
+        value = new URL(value).hostname;
+      } catch {
+        return '';
+      }
+    }
+    value = value
+      .split(/[/?#:]/)[0]
+      .replace(/^www\./, '')
+      .replace(/\.+$/, '');
+    return /^[a-z0-9.-]+$/.test(value) ? value : '';
+  }
+
+  async readBlockedSites() {
+    if (this.status && Array.isArray(this.status.blockedSites)) {
+      return this.status.blockedSites;
+    }
+    try {
+      const result = await api.storage.sync.get(['blockedSites']);
+      return Array.isArray(result.blockedSites) ? result.blockedSites : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async loadBlockedSites() {
+    this.renderBlockedSites(await this.readBlockedSites());
+    if (!this.status) {
+      // Content script unreachable: read the switch state from storage
+      try {
+        const result = await api.storage.sync.get(['pauseOnPayment']);
+        this.setSwitch('paymentSwitch', result.pauseOnPayment !== false);
+      } catch {
+        // keep default
+      }
+    }
+  }
+
+  async setPauseOnPayment(enabled) {
+    const response = await this.send({ action: 'setPauseOnPayment', enabled });
+    if (!response) {
+      api.storage.sync.set({ pauseOnPayment: enabled });
+      this.setSwitch('paymentSwitch', enabled);
+    }
+  }
+
+  async addBlockedFromInput() {
+    const input = document.getElementById('blockInput');
+    const domain = this.normalizeDomain(input.value);
+    if (!domain) {
+      input.focus();
+      return;
+    }
+    input.value = '';
+    await this.setBlocked(domain, true);
+  }
+
+  /** Add or remove `domain` from the blocklist; the content script persists it if reachable. */
+  async setBlocked(domain, blocked) {
+    domain = this.normalizeDomain(domain);
+    if (!domain) {
+      return;
+    }
+    const response = await this.send({ action: 'setBlocked', domain, blocked });
+    if (response) {
+      this.renderBlockedSites(response.blockedSites || []);
+      return;
+    }
+    // Content script unreachable: edit storage directly
+    const list = (await this.readBlockedSites()).filter(d => d !== domain);
+    if (blocked) {
+      list.push(domain);
+    }
+    try {
+      await api.storage.sync.set({ blockedSites: list });
+    } catch {
+      // Storage not available
+    }
+    this.renderBlockedSites(list);
+  }
+
+  renderBlockedSites(list) {
+    const container = document.getElementById('blockList');
+    const empty = document.getElementById('blockEmpty');
+    container.textContent = '';
+    empty.hidden = list.length > 0;
+    for (const domain of [...list].sort()) {
+      const item = document.createElement('div');
+      item.className = 'block-item';
+      const name = document.createElement('span');
+      name.className = 'domain';
+      name.textContent = domain;
+      const remove = document.createElement('button');
+      remove.className = 'link-btn';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', `Unblock ${domain}`);
+      remove.addEventListener('click', () => this.setBlocked(domain, false));
+      item.append(name, remove);
+      container.appendChild(item);
+    }
+    const current = this.domain();
+    const blockBtn = document.getElementById('blockSiteBtn');
+    const isBlocked = list.some(d => current === d || current.endsWith('.' + d));
+    blockBtn.textContent = isBlocked ? 'Unblock this site' : 'Block this site';
+    blockBtn.disabled = !current;
   }
 
   // ─── Custom rules ───────────────────────────────────────────────────
@@ -303,7 +443,13 @@ class PopupController {
 
     this.setSwitch('siteSwitch', s.siteEnabled);
     const siteSub = document.getElementById('siteSub');
-    if (!s.siteEnabled) {
+    siteSub.classList.toggle('blocked', !!s.siteBlocked);
+    siteSub.classList.toggle('warn', !s.siteBlocked && !!(s.pauseOnPayment && s.paymentPage));
+    if (s.siteBlocked) {
+      siteSub.textContent = 'Blocked site — never changed';
+    } else if (s.pauseOnPayment && s.paymentPage) {
+      siteSub.textContent = `Paused on this ${s.paymentReason || 'payment page'} for safety`;
+    } else if (!s.siteEnabled) {
       siteSub.textContent = 'Disabled on this site';
     } else if (s.sitePaused) {
       siteSub.textContent = 'Showing original prices until you rescan';
@@ -331,7 +477,16 @@ class PopupController {
       : 'Silently swaps listed prices for the real ones.';
 
     document.getElementById('restoreBtn').disabled = !s.enabled || !(s.processedCount > 0);
+    document.getElementById('reprocessBtn').disabled = !!s.siteBlocked;
     this.renderChanges(s.changes || []);
+
+    this.setSwitch('paymentSwitch', s.pauseOnPayment !== false);
+    document.getElementById('paymentSub').textContent = s.paymentPage
+      ? `This page looks like a ${s.paymentReason || 'payment page'}`
+      : 'Checkout, card forms and payment gateways are never changed';
+    if (Array.isArray(s.blockedSites)) {
+      this.renderBlockedSites(s.blockedSites);
+    }
   }
 
   setSwitch(id, on) {

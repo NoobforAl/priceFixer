@@ -94,6 +94,14 @@ extension is not active on a page, click **Enable on this site**.
 - Click the toolbar icon: global on/off, per-site on/off, Highlight/Replace,
   **Rescan page**, **Show originals**, and the list of what changed on the page.
 - `Ctrl+Shift+P` (`⌘⇧P` on macOS) toggles the extension.
+- **Security** (in the popup):
+  - _Pause on payment pages_ (on by default) — checkout pages, card forms and
+    payment gateways (PayPal, Stripe, Klarna, Shaparak, …) are never changed, so
+    the amount you are about to pay is always shown exactly as the site states
+    it.
+  - _Blocked sites_ — **Block this site** keeps Price Fixer off the current site
+    (and its subdomains) permanently; you can also type any domain to add it,
+    and remove entries from the list.
 - **Rules** (bottom of the popup) lets you add exceptions, one per line:
   - _Ignore elements on this site_ / _everywhere_ — CSS selectors, e.g.
     `.unit-price`, `#cart-total`

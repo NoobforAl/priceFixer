@@ -70,6 +70,13 @@ npm run dev:test:firefox  # Build Firefox + open test page
     `siteSettings[domain]`), stats in `storage.local`, and a per-site **session
     pause** in `storage.session` (`pausedSites`): after "Show originals" the
     site stays untouched until Rescan / re-enable.
+- `siteGuard.ts` - Blocklist and payment-page detection.
+  `storage.sync.blockedSites` (domains + subdomains, edited from popup →
+  Security) and `storage.sync.pauseOnPayment` (default on): payment gateways by
+  host, checkout URLs by whole path segment / subdomain label, card forms by
+  `cc-*` autocomplete, card `name`/`id` fields and gateway iframes. The content
+  script re-checks on URL change and (throttled to 1/s) on mutations, so
+  single-page checkouts are restored when the card form appears.
 - `customRules.ts` - User rules from `storage.sync.customRules` (popup → Rules):
   per-site/global exclude selectors, exclude regexes, extra price regexes (must
   capture `(?<amount>…)`). Compiled per page; errors reported in
@@ -123,8 +130,9 @@ script (Persian/Arabic-Indic) and grouping style (`RMB 9999 → RMB 10000`).
 
 `jest.config.js` (ts-jest + jsdom). Tests live in `src/__tests__/`:
 `pricePatterns.test.ts` (detection, rounding, formatting, negative cases),
-`content.test.ts` (highlight/replace/restore/split prices/observer) and
-`customRules.test.ts`. For a real browser check: `npm run build:firefox`, then
+`content.test.ts` (highlight/replace/restore/split prices/observer/site guard),
+`siteGuard.test.ts` and `customRules.test.ts`. For a real browser check:
+`npm run build:firefox`, then
 `npx web-ext run --source-dir dist-firefox --start-url http://localhost:3456/`
 with `node scripts/dev-server.js` running. Firefox MV3 does not grant
 `host_permissions` until the user allows the site; the popup offers "Enable on
@@ -145,10 +153,12 @@ matched individually and the surrounding text is preserved.
 
 Popup communicates with content script via `tabs.sendMessage`. Actions:
 `getStatus`, `toggle`, `setGlobalEnabled`, `setSiteEnabled`, `setMode`,
-`reprocess` (clears the session pause), `restore` (sets it), `getStats`. Every
-action replies with the full status object (`enabled`, `globalEnabled`,
-`siteEnabled`, `sitePaused`, `displayMode`, `processedCount`, `changes`, …). The
-content script also listens to `storage.onChanged` so other tabs follow.
+`reprocess` (clears the session pause), `restore` (sets it), `setBlocked`
+(`{domain?, blocked}`), `setPauseOnPayment`, `getStats`. Every action replies
+with the full status object (`enabled`, `globalEnabled`, `siteEnabled`,
+`sitePaused`, `siteBlocked`, `blockedSites`, `pauseOnPayment`, `paymentPage`,
+`paymentReason`, `displayMode`, `processedCount`, `changes`, …). The content
+script also listens to `storage.onChanged` so other tabs follow.
 
 ## CI/CD
 

@@ -189,3 +189,71 @@ describe('replace mode', () => {
     expect(document.querySelector('p')!.innerHTML).toBe('Was $199.99, now $149.99 <b>x</b>');
   });
 });
+
+describe('site guard', () => {
+  type Internals = {
+    handleMessage: (message: unknown, sendResponse: (r: unknown) => void) => void;
+    checkPaymentPage: () => boolean;
+    paymentPage: boolean;
+  };
+  const send = (instance: PriceFixerContent, message: unknown): Record<string, unknown> => {
+    let reply: unknown;
+    (instance as unknown as Internals).handleMessage(message, r => (reply = r));
+    return reply as Record<string, unknown>;
+  };
+
+  test('a page with a card form is left untouched', async () => {
+    const instance = await boot(
+      '<p>Total: <span>$49.99</span></p><form><input autocomplete="cc-number"></form>'
+    );
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(0);
+    const status = send(instance, { action: 'getStatus' });
+    expect(status.enabled).toBe(false);
+    expect(status.paymentPage).toBe(true);
+    expect(status.paymentReason).toBe('card form');
+  });
+
+  test('turning the payment pause off processes the page again', async () => {
+    const instance = await boot('<p>$49.99</p><input autocomplete="cc-number">');
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(0);
+    const status = send(instance, { action: 'setPauseOnPayment', enabled: false });
+    expect(status.enabled).toBe(true);
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(1);
+  });
+
+  test('a card form appearing later restores the page', async () => {
+    const instance = await boot('<p>$49.99</p>');
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(1);
+    (instance as unknown as { lastPaymentCheck: number }).lastPaymentCheck = 0;
+    const input = document.createElement('input');
+    input.setAttribute('autocomplete', 'cc-csc');
+    document.body.appendChild(input);
+    await tick();
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(0);
+    expect(document.querySelector('p')!.textContent).toBe('$49.99');
+    expect((instance as unknown as Internals).paymentPage).toBe(true);
+  });
+
+  test('blocking the current site restores it and unblocking processes it', async () => {
+    const instance = await boot('<p>$5.99</p>');
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(1);
+
+    let status = send(instance, { action: 'setBlocked', blocked: true });
+    expect(status.siteBlocked).toBe(true);
+    expect(status.blockedSites).toEqual([window.location.hostname]);
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(0);
+
+    status = send(instance, { action: 'setBlocked', blocked: false });
+    expect(status.siteBlocked).toBe(false);
+    expect(status.blockedSites).toEqual([]);
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(1);
+  });
+
+  test('blocking another domain does not affect this page', async () => {
+    const instance = await boot('<p>$5.99</p>');
+    const status = send(instance, { action: 'setBlocked', blocked: true, domain: 'Other.com/' });
+    expect(status.blockedSites).toEqual(['other.com']);
+    expect(status.siteBlocked).toBe(false);
+    expect(document.querySelectorAll('.pf-highlight')).toHaveLength(1);
+  });
+});

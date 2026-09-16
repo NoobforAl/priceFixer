@@ -325,6 +325,40 @@
         .rules-actions { display: flex; }
         .rules-errors { color: var(--red); font-size: 11px; white-space: pre-wrap; }
         .rules-errors:empty { display: none; }
+
+        /* Security: payment pause + blocklist */
+        .row-sub.warn { color: var(--amber); }
+        .row-sub.blocked { color: var(--red); }
+        .block-add { display: flex; gap: 6px; margin-top: 10px; }
+        .block-add input {
+            flex: 1;
+            min-width: 0;
+            padding: 7px 9px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card-2);
+            color: var(--text);
+            font: inherit;
+            font-size: 12px;
+        }
+        .block-add input:focus { outline: 2px solid var(--green-dark); outline-offset: 1px; }
+        .block-add .btn { flex: none; padding: 7px 12px; font-size: 12px; }
+        .btn.danger { border-color: rgba(248, 113, 113, 0.5); color: var(--red); }
+        .btn.danger:hover { background: rgba(248, 113, 113, 0.12); }
+        .block-list { margin-top: 8px; max-height: 120px; overflow-y: auto; scrollbar-width: thin; }
+        .block-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .block-item:nth-child(odd) { background: var(--card-2); }
+        .block-item .domain { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .block-item .link-btn { flex: none; }
+        .block-empty { font-size: 11px; color: var(--muted); margin-top: 8px; }
     </style>
 </head>
 
@@ -393,6 +427,36 @@
                 <button class="link-btn" id="clearChangesBtn">Hide</button>
             </div>
             <div class="changes-list" id="changesList"></div>
+        </div>
+
+        <div class="card">
+            <button class="disclosure" id="securityToggle" aria-expanded="false">
+                <span>Security</span><span class="chev">&#9662;</span>
+            </button>
+            <div class="rules" id="securityPanel" hidden>
+                <div class="row">
+                    <div>
+                        <div class="row-label">Pause on payment pages</div>
+                        <div class="row-sub" id="paymentSub">Checkout, card forms and payment gateways are never changed</div>
+                    </div>
+                    <button class="switch on" id="paymentSwitch" role="switch" aria-checked="true" aria-label="Pause on payment pages"></button>
+                </div>
+                <div>
+                    <div class="row">
+                        <div>
+                            <div class="row-label">Blocked sites</div>
+                            <div class="row-sub">Never touched, including subdomains</div>
+                        </div>
+                        <button class="btn danger" id="blockSiteBtn" style="flex:none;padding:7px 12px;font-size:12px">Block this site</button>
+                    </div>
+                    <div class="block-add">
+                        <input id="blockInput" type="text" placeholder="example.com" spellcheck="false" autocomplete="off">
+                        <button class="btn" id="blockAddBtn">Add</button>
+                    </div>
+                    <div class="block-list" id="blockList"></div>
+                    <div class="block-empty" id="blockEmpty">No blocked sites yet.</div>
+                </div>
+            </div>
         </div>
 
         <div class="card">
