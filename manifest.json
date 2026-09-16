@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Price Fixer",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Exposes charm pricing: shows $5.99 as the $6 it really is",
   "permissions": ["activeTab", "storage", "scripting"],
   "optional_permissions": ["notifications"],
