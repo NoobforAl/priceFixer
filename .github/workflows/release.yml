@@ -195,9 +195,10 @@ jobs:
           npm ci
           npm run build:firefox
 
-      # Waits up to 15 min for Mozilla's automated approval so the signed .xpi
-      # can be downloaded and attached to the GitHub release. If approval takes
-      # longer the step still succeeds; the .xpi is then available on AMO.
+      # Waits up to 15 min for AMO approval so the signed .xpi can be downloaded
+      # and attached to the GitHub release. Listed versions may need human
+      # review, which can take longer: that is reported as a warning, not a
+      # failure, and the .xpi becomes available on AMO once approved.
       - name: Sign and submit to AMO
         if: steps.check.outputs.configured == 'true'
         env:
@@ -205,11 +206,20 @@ jobs:
           WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
           CHANNEL: ${{ vars.AMO_CHANNEL || 'listed' }}
         run: |
+          echo '{"version":{"license":"MIT"}}' > amo-metadata.json
+          set +e
           npx --yes web-ext sign \
             --source-dir dist-firefox \
             --artifacts-dir web-ext-artifacts \
             --channel "$CHANNEL" \
-            --approval-timeout 900000
+            --amo-metadata amo-metadata.json \
+            --approval-timeout 900000 2>&1 | tee sign.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ] && grep -q "Approval: timeout exceeded" sign.log; then
+            echo "::warning::AMO approval still pending after 15 min; the signed .xpi will be available on AMO once approved."
+            exit 0
+          fi
+          exit "$code"
 
       - uses: actions/upload-artifact@v4
         if: steps.check.outputs.configured == 'true'

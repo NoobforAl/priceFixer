@@ -1,6 +1,6 @@
 {
   "name": "price-fixer-extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Exposes charm pricing: shows $5.99 as the $6 it really is",
   "main": "dist/content.js",
   "scripts": {
