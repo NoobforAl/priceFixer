@@ -118,8 +118,13 @@ npm run dev:test:firefox  # Build Firefox + open test page
   `runtime.openOptionsPage()`. Reads/writes `storage.sync` directly; content
   scripts follow through `storage.onChanged`. Adds what the popup can't show:
   every `siteSettings` entry, rules for any domain, reset stats/settings.
-- `ui-common.js` - `api` / `isPromiseApi` detection and `normalizeDomain()`,
+- `ui-common.js` - `api` / `isPromiseApi` detection, `normalizeDomain()` and the
+  theme (`storage.sync.theme`: `system` | `light` | `dark`, mirrored in
+  `localStorage` so pages open in the right theme; sets `<html data-theme>`),
   loaded as globals by both pages.
+- `ui.css` - Shared tokens and controls for both pages. Light by default, dark
+  under `prefers-color-scheme: dark` or `data-theme="dark"`; every colour is a
+  custom property, so page styles never hard-code colours.
 - `manifest.json` - Chrome Manifest V3.
 - `manifest.firefox.json` - Firefox Manifest V3 (uses `background.scripts`
   instead of `service_worker`).

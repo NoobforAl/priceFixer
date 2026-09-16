@@ -5,275 +5,101 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Price Fixer settings</title>
+    <link rel="stylesheet" href="ui.css">
     <style>
-        :root {
-            --bg: #14142b;
-            --card: #1f1f3d;
-            --card-2: #27274a;
-            --border: rgba(255, 255, 255, 0.10);
-            --text: #ececf4;
-            --muted: #a2a2be;
-            --green: #4ade80;
-            --green-dark: #22c55e;
-            --red: #f87171;
-            --amber: #fbbf24;
-            color-scheme: dark;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            font-size: 14px;
-            line-height: 1.45;
-            background: var(--bg);
-            color: var(--text);
-        }
+        body { font-size: 14px; }
 
         .container {
-            max-width: 760px;
+            max-width: 960px;
             margin: 0 auto;
-            padding: 28px 20px 48px;
+            padding: 32px 24px 64px;
         }
 
         .header {
             display: flex;
             align-items: baseline;
             justify-content: space-between;
-            gap: 12px;
+            gap: 16px;
             flex-wrap: wrap;
-            margin-bottom: 20px;
+            margin-bottom: 28px;
         }
-
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }
-
+        .header h1 { font-size: 26px; letter-spacing: -0.02em; }
         .header .subtitle { font-size: 13px; color: var(--muted); }
 
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 18px 20px;
-            margin-bottom: 14px;
+        .layout {
+            display: grid;
+            grid-template-columns: 170px minmax(0, 1fr);
+            gap: 40px;
+            align-items: start;
         }
 
-        .card h2 {
-            margin: 0 0 4px;
-            font-size: 15px;
-            font-weight: 700;
-        }
-
-        .card-intro { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
-
-        .row {
+        /* Section nav */
+        .toc {
+            position: sticky;
+            top: 24px;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
+            flex-direction: column;
+            gap: 2px;
         }
-
-        .row + .row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-
-        .row-label { font-weight: 600; }
-        .row-sub { font-size: 12px; color: var(--muted); }
-        .row-sub.warn { color: var(--amber); }
-
-        .switch {
-            position: relative;
-            flex: none;
-            width: 42px;
-            height: 24px;
-            background: rgba(255, 255, 255, 0.18);
-            border-radius: 12px;
-            cursor: pointer;
-            transition: background 0.2s ease;
-            border: none;
-            padding: 0;
-        }
-        .switch:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-        .switch.on { background: var(--green-dark); }
-        .switch::after {
-            content: '';
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 18px;
-            height: 18px;
-            background: #fff;
-            border-radius: 50%;
-            transition: transform 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-        }
-        .switch.on::after { transform: translateX(18px); }
-
-        .segmented {
-            display: flex;
-            background: var(--card-2);
-            border-radius: 10px;
-            padding: 3px;
-            gap: 3px;
-            max-width: 320px;
-        }
-        .segmented button {
-            flex: 1;
-            padding: 8px 10px;
-            border: none;
-            border-radius: 8px;
-            background: transparent;
+        .toc a {
+            padding: 6px 10px;
+            border-radius: 7px;
             color: var(--muted);
             font-size: 13px;
             font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s, color 0.15s;
+            text-decoration: none;
         }
-        .segmented button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
-        .segmented button:hover:not(.active) { color: var(--text); }
-        .mode-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+        .toc a:hover { color: var(--text); background: var(--surface-2); }
+        .toc a.active { color: var(--accent); }
 
-        .btn {
-            padding: 8px 14px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: var(--card);
-            color: var(--text);
-            font: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .btn:hover { background: var(--card-2); }
-        .btn.primary { background: var(--green-dark); border-color: var(--green-dark); color: #06210f; }
-        .btn.primary:hover { background: var(--green); }
-        .btn.danger { border-color: rgba(248, 113, 113, 0.5); color: var(--red); }
-        .btn.danger:hover { background: rgba(248, 113, 113, 0.12); }
-        .btn:disabled { opacity: 0.5; cursor: default; }
+        .section + .section { margin-top: 36px; }
+        .section h2 { font-size: 17px; }
+        .section-intro { margin: 2px 0 12px; font-size: 13px; color: var(--muted); max-width: 60ch; }
 
-        .link-btn {
-            background: none;
-            border: none;
-            color: var(--muted);
-            font: inherit;
-            font-size: 12px;
-            cursor: pointer;
-            padding: 2px 4px;
-        }
-        .link-btn:hover { color: var(--text); }
+        .card { padding: 14px 18px; }
+        .card .row + .row { margin-top: 14px; padding-top: 14px; }
+        .row-sub { font-size: 12.5px; }
 
-        input[type="text"], select, textarea {
-            width: 100%;
-            min-width: 0;
-            padding: 8px 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: var(--card-2);
-            color: var(--text);
-            font: inherit;
-            font-size: 13px;
-        }
-        input[type="text"]:focus, select:focus, textarea:focus { outline: 2px solid var(--green-dark); outline-offset: 1px; }
-        textarea {
-            display: block;
-            margin-top: 6px;
-            font-family: ui-monospace, Consolas, monospace;
-            font-size: 12px;
-            resize: vertical;
-        }
+        .segmented { max-width: 340px; margin-top: 8px; }
+        .segmented button { padding: 7px 10px; font-size: 13px; }
+        .mode-hint { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 
-        .add-row { display: flex; gap: 8px; margin-top: 12px; }
-        .add-row .btn { flex: none; }
-
-        .list { margin-top: 10px; }
-        .list-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 7px 10px;
-            border-radius: 8px;
-            font-size: 13px;
-        }
-        .list-item:nth-child(odd) { background: var(--card-2); }
-        .list-item .domain { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .list-item .state { font-size: 12px; color: var(--muted); }
-        .list-item .link-btn { flex: none; }
-        .list-empty { font-size: 12px; color: var(--muted); margin-top: 10px; }
-
-        .rules { display: flex; flex-direction: column; gap: 14px; }
-        .rules label { display: block; font-size: 12px; color: var(--muted); }
-        .rules label b { color: var(--text); }
-        .rules code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
-        .site-picker { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-        .site-picker select { flex: 1; }
-        .site-picker input { flex: 1; }
+        .rules { display: flex; flex-direction: column; gap: 16px; }
+        .rules label { display: block; font-size: 12.5px; color: var(--muted); }
+        .rules textarea { margin-top: 6px; font-size: 12.5px; }
+        .site-picker { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+        .site-picker select, .site-picker input { flex: 1; }
         .rules-actions { display: flex; align-items: center; gap: 12px; }
-        .rules-errors { color: var(--red); font-size: 12px; white-space: pre-wrap; }
-        .rules-errors:empty { display: none; }
 
         .stats {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-        .stat {
-            background: var(--card-2);
-            border-radius: 10px;
-            padding: 14px 10px;
-            text-align: center;
-        }
-        .stat-number {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--green);
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
             font-variant-numeric: tabular-nums;
         }
-        .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-        kbd {
-            background: var(--card-2);
-            border: 1px solid var(--border);
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 11px;
+        .stat-number {
+            font-size: 30px;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            color: var(--accent);
         }
+        .stat-label { font-size: 12.5px; color: var(--muted); }
 
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 8px;
-        }
+        .footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); }
 
-        .toast {
-            position: fixed;
-            left: 50%;
-            bottom: 24px;
-            transform: translate(-50%, 12px);
-            background: var(--green-dark);
-            color: #06210f;
-            font-weight: 600;
-            font-size: 13px;
-            padding: 8px 16px;
-            border-radius: 999px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.15s, transform 0.15s;
-        }
-        .toast.visible { opacity: 1; transform: translate(-50%, 0); }
-
-        @media (max-width: 480px) {
-            .container { padding: 18px 14px 40px; }
-            .card { padding: 14px; }
+        @media (max-width: 760px) {
+            .container { padding: 20px 16px 48px; }
+            .layout { grid-template-columns: 1fr; gap: 0; }
+            .toc {
+                position: static;
+                flex-direction: row;
+                flex-wrap: wrap;
+                margin-bottom: 20px;
+            }
             .site-picker { flex-wrap: wrap; }
+            .stats { gap: 20px; }
         }
     </style>
 </head>
@@ -282,125 +108,158 @@
     <div class="container">
         <div class="header">
             <h1>Price Fixer settings</h1>
-            <div class="subtitle">$5.99 is $6 — settings sync across your devices</div>
+            <div class="subtitle">Settings sync across your devices; statistics stay on this one.</div>
         </div>
 
-        <div class="card">
-            <h2>General</h2>
-            <p class="card-intro">Quick controls also live in the toolbar popup.</p>
-            <div class="row">
-                <div>
-                    <div class="row-label">Extension</div>
-                    <div class="row-sub" id="globalSub">On everywhere</div>
-                </div>
-                <button class="switch on" id="globalSwitch" role="switch" aria-checked="true" aria-label="Enable Price Fixer"></button>
-            </div>
-            <div class="row">
-                <div style="flex:1;min-width:0">
-                    <div class="row-label">Display mode</div>
-                    <div class="segmented" role="radiogroup" aria-label="Display mode" style="margin-top:8px">
-                        <button id="modeHighlight" class="active" role="radio" aria-checked="true">Highlight</button>
-                        <button id="modeReplace" role="radio" aria-checked="false">Replace</button>
+        <div class="layout">
+            <nav class="toc" id="toc" aria-label="Sections">
+                <a href="#general">General</a>
+                <a href="#security">Security</a>
+                <a href="#sites">Sites</a>
+                <a href="#rules">Rules</a>
+                <a href="#statistics">Statistics</a>
+                <a href="#data">Data</a>
+            </nav>
+
+            <main>
+                <section class="section" id="general">
+                    <h2>General</h2>
+                    <p class="section-intro">The same switches live in the toolbar popup.</p>
+                    <div class="card">
+                        <div class="row">
+                            <div>
+                                <div class="row-label">Extension</div>
+                                <div class="row-sub" id="globalSub">On everywhere</div>
+                            </div>
+                            <button class="switch on" id="globalSwitch" role="switch" aria-checked="true" aria-label="Enable Price Fixer"></button>
+                        </div>
+                        <div class="row">
+                            <div style="flex:1;min-width:0">
+                                <div class="row-label">Display mode</div>
+                                <div class="segmented" role="radiogroup" aria-label="Display mode">
+                                    <button id="modeHighlight" class="active" role="radio" aria-checked="true">Highlight</button>
+                                    <button id="modeReplace" role="radio" aria-checked="false">Replace</button>
+                                </div>
+                                <div class="mode-hint" id="modeHint">Highlights the real price; hover it to see the listed one.</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div style="flex:1;min-width:0">
+                                <div class="row-label">Theme</div>
+                                <div class="segmented" role="radiogroup" aria-label="Theme">
+                                    <button id="themeSystem" class="active" role="radio" aria-checked="true">System</button>
+                                    <button id="themeLight" role="radio" aria-checked="false">Light</button>
+                                    <button id="themeDark" role="radio" aria-checked="false">Dark</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div>
+                                <div class="row-label">Keyboard shortcut</div>
+                                <div class="row-sub">Toggle Price Fixer on the current tab with <kbd>Ctrl+Shift+P</kbd> (<kbd>⌘⇧P</kbd> on macOS)</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mode-hint" id="modeHint">Highlights the real price; hover it to see the listed one.</div>
-                </div>
-            </div>
-            <div class="row">
-                <div>
-                    <div class="row-label">Keyboard shortcut</div>
-                    <div class="row-sub">Toggle Price Fixer on the current tab with <kbd>Ctrl+Shift+P</kbd> (<kbd>⌘⇧P</kbd> on macOS)</div>
-                </div>
-            </div>
-        </div>
+                </section>
 
-        <div class="card">
-            <h2>Security</h2>
-            <p class="card-intro">Pages where the exact listed amount matters are never changed.</p>
-            <div class="row">
-                <div>
-                    <div class="row-label">Pause on payment pages</div>
-                    <div class="row-sub">Checkout, card forms and payment gateways are never changed</div>
-                </div>
-                <button class="switch on" id="paymentSwitch" role="switch" aria-checked="true" aria-label="Pause on payment pages"></button>
-            </div>
-            <div class="row">
-                <div style="flex:1;min-width:0">
-                    <div class="row-label">Blocked sites</div>
-                    <div class="row-sub">Never touched, including subdomains</div>
-                    <div class="add-row">
-                        <input id="blockInput" type="text" placeholder="example.com" spellcheck="false" autocomplete="off" aria-label="Domain to block">
-                        <button class="btn" id="blockAddBtn">Add</button>
+                <section class="section" id="security">
+                    <h2>Security</h2>
+                    <p class="section-intro">Pages where the exact listed amount matters are never changed.</p>
+                    <div class="card">
+                        <div class="row">
+                            <div>
+                                <div class="row-label">Pause on payment pages</div>
+                                <div class="row-sub">Checkout, card forms and payment gateways are left exactly as the site shows them</div>
+                            </div>
+                            <button class="switch on" id="paymentSwitch" role="switch" aria-checked="true" aria-label="Pause on payment pages"></button>
+                        </div>
+                        <div class="row">
+                            <div style="flex:1;min-width:0">
+                                <div class="row-label">Blocked sites</div>
+                                <div class="row-sub">Never touched, including subdomains</div>
+                                <div class="add-row">
+                                    <input id="blockInput" type="text" placeholder="example.com" spellcheck="false" autocomplete="off" aria-label="Domain to block">
+                                    <button class="btn" id="blockAddBtn">Add</button>
+                                </div>
+                                <div class="list" id="blockList"></div>
+                                <div class="list-empty" id="blockEmpty">No blocked sites yet. Add a domain above, or use "Block this site" in the popup.</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="list" id="blockList"></div>
-                    <div class="list-empty" id="blockEmpty">No blocked sites yet.</div>
-                </div>
-            </div>
-        </div>
+                </section>
 
-        <div class="card">
-            <h2>Sites</h2>
-            <p class="card-intro">Per-site switches, as set from the popup. Remove an entry to fall back to the default (on).</p>
-            <div class="add-row" style="margin-top:0">
-                <input id="siteInput" type="text" placeholder="example.com" spellcheck="false" autocomplete="off" aria-label="Domain to add">
-                <button class="btn" id="siteAddBtn">Add as disabled</button>
-            </div>
-            <div class="list" id="siteList"></div>
-            <div class="list-empty" id="siteEmpty">No per-site settings yet.</div>
-        </div>
-
-        <div class="card">
-            <h2>Rules</h2>
-            <p class="card-intro">Exceptions and extra formats. One entry per line; invalid entries are reported and ignored.</p>
-            <div class="rules">
-                <label>Ignore elements everywhere (CSS selectors)
-                    <textarea id="ruleSelectorsAll" rows="3" spellcheck="false" placeholder=".rating&#10;.unit-price"></textarea>
-                </label>
-                <div>
-                    <label for="ruleSiteSelect">Ignore elements on a specific site (CSS selectors)</label>
-                    <div class="site-picker" style="margin-top:6px">
-                        <select id="ruleSiteSelect" aria-label="Site"></select>
-                        <input id="ruleSiteInput" type="text" placeholder="add site: example.com" spellcheck="false" autocomplete="off" aria-label="Add a site">
-                        <button class="btn" id="ruleSiteAddBtn">Add</button>
+                <section class="section" id="sites">
+                    <h2>Sites</h2>
+                    <p class="section-intro">Sites you switched off from the popup. Remove an entry to go back to the default (on).</p>
+                    <div class="card">
+                        <div class="add-row" style="margin-top:0">
+                            <input id="siteInput" type="text" placeholder="example.com" spellcheck="false" autocomplete="off" aria-label="Domain to add">
+                            <button class="btn" id="siteAddBtn">Switch off on this site</button>
+                        </div>
+                        <div class="list" id="siteList"></div>
+                        <div class="list-empty" id="siteEmpty">No per-site settings yet. Price Fixer is on everywhere.</div>
                     </div>
-                    <textarea id="ruleSelectors" rows="3" spellcheck="false" placeholder=".unit-price&#10;#cart-total" aria-label="Selectors for the chosen site"></textarea>
-                </div>
-                <label>Ignore text matching (regex)
-                    <textarea id="ruleExclude" rows="3" spellcheck="false" placeholder="per\s+month&#10;per\s+(oz|lb)"></textarea>
-                </label>
-                <label>Extra price patterns (regex with an <code>(?&lt;amount&gt;…)</code> group)
-                    <textarea id="ruleExtra" rows="3" spellcheck="false" placeholder="(?&lt;amount&gt;\d[\d,]*)\s*coins"></textarea>
-                </label>
-                <div class="rules-actions">
-                    <button class="btn primary" id="rulesSave">Save rules</button>
-                    <span class="row-sub" id="rulesDirty" hidden>Unsaved changes</span>
-                </div>
-                <div class="rules-errors" id="rulesErrors"></div>
-            </div>
-        </div>
+                </section>
 
-        <div class="card">
-            <h2>Statistics</h2>
-            <p class="card-intro">Counted on this device only.</p>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-number" id="totalRounded">0</div>
-                    <div class="stat-label">prices rounded all-time</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-number" id="hiddenAmount">0.00</div>
-                    <div class="stat-label">hidden in .99s</div>
-                </div>
-            </div>
-            <button class="btn" id="resetStatsBtn">Reset statistics</button>
-        </div>
+                <section class="section" id="rules">
+                    <h2>Rules</h2>
+                    <p class="section-intro">Exceptions and extra formats, one per line. Invalid entries are listed after saving and ignored on pages.</p>
+                    <div class="card rules">
+                        <label>Ignore elements everywhere (CSS selectors)
+                            <textarea id="ruleSelectorsAll" rows="3" spellcheck="false" placeholder=".rating&#10;.unit-price"></textarea>
+                        </label>
+                        <div>
+                            <label for="ruleSiteSelect">Ignore elements on one site (CSS selectors)</label>
+                            <div class="site-picker">
+                                <select id="ruleSiteSelect" aria-label="Site"></select>
+                                <input id="ruleSiteInput" type="text" placeholder="add a site: example.com" spellcheck="false" autocomplete="off" aria-label="Add a site">
+                                <button class="btn" id="ruleSiteAddBtn">Add</button>
+                            </div>
+                            <textarea id="ruleSelectors" rows="3" spellcheck="false" placeholder=".unit-price&#10;#cart-total" aria-label="Selectors for the chosen site"></textarea>
+                        </div>
+                        <label>Ignore text matching (regex)
+                            <textarea id="ruleExclude" rows="3" spellcheck="false" placeholder="per\s+month&#10;per\s+(oz|lb)"></textarea>
+                        </label>
+                        <label>Extra price patterns (regex with an <code>(?&lt;amount&gt;…)</code> group)
+                            <textarea id="ruleExtra" rows="3" spellcheck="false" placeholder="(?&lt;amount&gt;\d[\d,]*)\s*coins"></textarea>
+                        </label>
+                        <div class="rules-actions">
+                            <button class="btn primary" id="rulesSave">Save rules</button>
+                            <span class="row-sub" id="rulesDirty" hidden>Unsaved changes</span>
+                        </div>
+                        <div class="errors" id="rulesErrors"></div>
+                    </div>
+                </section>
 
-        <div class="card">
-            <h2>Data</h2>
-            <p class="card-intro">Clears every setting above (mode, blocklist, per-site switches, rules) on all synced devices.</p>
-            <button class="btn danger" id="resetAllBtn">Reset all settings</button>
-        </div>
+                <section class="section" id="statistics">
+                    <h2>Statistics</h2>
+                    <p class="section-intro">Counted on this device only.</p>
+                    <div class="card">
+                        <div class="stats">
+                            <div>
+                                <div class="stat-number" id="totalRounded">0</div>
+                                <div class="stat-label">prices rounded all-time</div>
+                            </div>
+                            <div>
+                                <div class="stat-number" id="hiddenAmount">0.00</div>
+                                <div class="stat-label">hidden in .99s</div>
+                            </div>
+                        </div>
+                        <button class="btn" id="resetStatsBtn">Reset statistics</button>
+                    </div>
+                </section>
 
-        <div class="footer" id="footer">Price Fixer</div>
+                <section class="section" id="data">
+                    <h2>Data</h2>
+                    <p class="section-intro">Puts every setting above back to its default, on all synced devices.</p>
+                    <div class="card">
+                        <button class="btn danger" id="resetAllBtn">Reset all settings</button>
+                    </div>
+                </section>
+
+                <div class="footer" id="footer">Price Fixer</div>
+            </main>
+        </div>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite">Saved</div>

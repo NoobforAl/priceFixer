@@ -42,6 +42,7 @@ module.exports = (env = {}) => {
           { from: 'options.html', to: '.' },
           { from: 'options.js', to: '.' },
           { from: 'ui-common.js', to: '.' },
+          { from: 'ui.css', to: '.' },
           { from: 'icons/icon-*.png', to: 'icons/[name][ext]' },
         ],
       }),

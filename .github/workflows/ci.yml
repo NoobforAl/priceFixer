@@ -71,7 +71,7 @@ jobs:
     - name: Check packaged files
       run: |
         for dir in dist dist-firefox; do
-          for f in manifest.json background.js content.js popup.html popup.js options.html options.js ui-common.js; do
+          for f in manifest.json background.js content.js popup.html popup.js options.html options.js ui-common.js ui.css; do
             test -f "$dir/$f" || { echo "missing $dir/$f"; exit 1; }
           done
           node -e "const m=require('./$dir/manifest.json'); if (m.options_ui?.page !== 'options.html') { console.error('$dir: options_ui missing'); process.exit(1); }"

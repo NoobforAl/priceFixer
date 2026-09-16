@@ -14,6 +14,7 @@ const SYNC_KEYS = [
   'customRules',
   'blockedSites',
   'pauseOnPayment',
+  'theme',
 ];
 
 class OptionsController {
@@ -30,6 +31,7 @@ class OptionsController {
   async init() {
     this.bindEvents();
     this.showVersion();
+    this.trackSections();
     await this.load();
     this.render();
     this.renderStats();
@@ -52,6 +54,9 @@ class OptionsController {
     on('paymentSwitch', () =>
       this.save({ pauseOnPayment: this.settings.pauseOnPayment === false })
     );
+    on('themeSystem', () => this.save({ theme: 'system' }));
+    on('themeLight', () => this.save({ theme: 'light' }));
+    on('themeDark', () => this.save({ theme: 'dark' }));
 
     on('blockAddBtn', () => this.addBlockedFromInput());
     onEnter('blockInput', () => this.addBlockedFromInput());
@@ -70,6 +75,37 @@ class OptionsController {
 
     on('resetStatsBtn', () => this.resetStats());
     on('resetAllBtn', () => this.resetAll());
+  }
+
+  /** Highlight the section nav entry for the section in view. */
+  trackSections() {
+    const links = [...document.querySelectorAll('#toc a')];
+    const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    if (!('IntersectionObserver' in window) || sections.length === 0) {
+      return;
+    }
+    const visible = new Set();
+    const update = () => {
+      const first = sections.find(s => visible.has(s)) || sections[0];
+      for (const a of links) {
+        a.classList.toggle('active', a.getAttribute('href') === `#${first.id}`);
+      }
+    };
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            visible.add(entry.target);
+          } else {
+            visible.delete(entry.target);
+          }
+        }
+        update();
+      },
+      { rootMargin: '-10% 0px -60% 0px' }
+    );
+    sections.forEach(s => observer.observe(s));
+    update();
   }
 
   showVersion() {
@@ -448,6 +484,12 @@ class OptionsController {
     document.getElementById('modeHint').textContent = highlight
       ? 'Highlights the real price; hover it to see the listed one.'
       : 'Silently swaps listed prices for the real ones.';
+
+    const theme = themePreference(s.theme);
+    this.setRadio('themeSystem', theme === 'system');
+    this.setRadio('themeLight', theme === 'light');
+    this.setRadio('themeDark', theme === 'dark');
+    applyTheme(theme);
 
     this.setSwitch('paymentSwitch', s.pauseOnPayment !== false);
     this.renderBlockedSites();

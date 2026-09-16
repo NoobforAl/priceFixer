@@ -13,6 +13,7 @@ class PopupController {
 
   async init() {
     this.bindEvents();
+    this.renderTheme({ effective: effectiveTheme(document.documentElement.dataset.theme) });
     try {
       this.tab = await this.getCurrentTab();
       this.showUrl();
@@ -38,6 +39,8 @@ class PopupController {
     });
     on('noticeAction', () => this.enableOnThisSite());
     on('openOptions', () => this.openOptions());
+    on('themeBtn', () => this.toggleTheme());
+    document.addEventListener('pf-theme', e => this.renderTheme(e.detail));
     on('rulesToggle', () => this.toggleRules());
     on('rulesSave', () => this.saveRules());
     on('securityToggle', () => this.toggleSecurity());
@@ -54,6 +57,31 @@ class PopupController {
         this.addBlockedFromInput();
       }
     });
+  }
+
+  // ─── Theme ───────────────────────────────────────────────────────────
+
+  /** Flip between light and dark (an explicit choice, replacing "system"). */
+  toggleTheme() {
+    const current = effectiveTheme(document.documentElement.dataset.theme);
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try {
+      api.storage.sync.set({ theme: next });
+    } catch {
+      // Storage not available; the page still switched
+    }
+  }
+
+  renderTheme({ effective }) {
+    const dark = effective === 'dark';
+    // SVG elements have no `hidden` property; toggle the attribute
+    document.querySelector('#themeBtn .icon-sun').toggleAttribute('hidden', !dark);
+    document.querySelector('#themeBtn .icon-moon').toggleAttribute('hidden', dark);
+    const label = dark ? 'Switch to light theme' : 'Switch to dark theme';
+    const button = document.getElementById('themeBtn');
+    button.title = label;
+    button.setAttribute('aria-label', label);
   }
 
   /** Full-page settings in a new tab (options_ui.open_in_tab). */
@@ -158,7 +186,7 @@ class PopupController {
     empty.hidden = list.length > 0;
     for (const domain of [...list].sort()) {
       const item = document.createElement('div');
-      item.className = 'block-item';
+      item.className = 'list-item';
       const name = document.createElement('span');
       name.className = 'domain';
       name.textContent = domain;
