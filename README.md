@@ -171,4 +171,4 @@ themselves.
 
 ## License
 
-MIT
+[MIT](LICENSE)
