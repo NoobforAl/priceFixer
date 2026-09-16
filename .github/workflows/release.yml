@@ -195,6 +195,9 @@ jobs:
           npm ci
           npm run build:firefox
 
+      # Waits up to 15 min for Mozilla's automated approval so the signed .xpi
+      # can be downloaded and attached to the GitHub release. If approval takes
+      # longer the step still succeeds; the .xpi is then available on AMO.
       - name: Sign and submit to AMO
         if: steps.check.outputs.configured == 'true'
         env:
@@ -206,7 +209,7 @@ jobs:
             --source-dir dist-firefox \
             --artifacts-dir web-ext-artifacts \
             --channel "$CHANNEL" \
-            --approval-timeout 0
+            --approval-timeout 900000
 
       - uses: actions/upload-artifact@v4
         if: steps.check.outputs.configured == 'true'
