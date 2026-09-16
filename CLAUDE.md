@@ -30,6 +30,7 @@ npm run validate       # Type-check + lint + format-check + test (full CI check)
 npm run lint:fix       # Auto-fix lint issues
 npm run format         # Auto-format code
 npm run type-check     # tsc --noEmit
+npm run bench          # Scan/mutation/rescan timings on a 3,000-card synthetic page (jsdom)
 npm run dev:test       # Build Chrome + open test page at localhost:3456
 npm run dev:test:firefox  # Build Firefox + open test page
 ```
@@ -66,6 +67,15 @@ npm run dev:test:firefox  # Build Firefox + open test page
   - Skips `SKIP_TAGS` (script/style/code/pre/select/option/svg/…),
     `contenteditable`, and our own nodes. MutationObserver handles dynamic
     content; `observer.takeRecords()` after our own DOM edits stops feedback.
+  - **Performance**: the page scan is an explicit stack (`scanNode`) run in ~12
+    ms slices — the first slice is synchronous, the rest yield via
+    `requestIdleCallback`; `restoreOriginal()`/`processPage()` bump
+    `scanGeneration` to cancel a pending scan. Ancestor checks (`closest`) run
+    only at a walk's root (`root` flag), never per descendant. The
+    screen-reader-hidden check (`getComputedStyle` + `getBoundingClientRect`,
+    forces layout) runs only for compact elements holding a complete price next
+    to other digit nodes, after cheap class/attribute checks, cached per parent.
+    Measure with `npm run bench` before touching any of this.
   - Settings in `storage.sync` (`globalEnabled`, `displayMode`,
     `siteSettings[domain]`), stats in `storage.local`, and a per-site **session
     pause** in `storage.session` (`pausedSites`): after "Show originals" the

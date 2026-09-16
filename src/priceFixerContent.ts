@@ -93,6 +93,25 @@ const SKIP_TAGS = new Set([
 // several child elements ("<span>$</span><span>5</span><sup>99</sup>").
 const COMPACT_TEXT_LIMIT = 40;
 
+/** Budget per scan slice; the rest of the page is scanned in idle time. */
+const SCAN_SLICE_MS = 12;
+const DIGIT = /[\d۰-۹٠-٩]/;
+/** A node that is only a piece of a number: "$", "5", ".", "99" */
+const FRAGMENT = /^\s*(?:[\d۰-۹٠-٩.,٬٫]+|[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼])\s*$/;
+/** ".99 today" continues a number started in the previous node */
+const CONTINUES_NUMBER = /^[.,٫٬][\d۰-۹٠-٩]/;
+const TWO_DIGITS = /^\s*[\d۰-۹٠-٩]{2}\s*$/;
+const ENDS_WITH_DIGIT = /[\d۰-۹٠-٩]$/;
+// Screen-reader-only conventions, checked before the (expensive) computed style
+const SR_ONLY_CLASS =
+  /(^|\s)(a-offscreen|sr-only|visually-hidden|visuallyhidden|screen-reader-only|screen-reader-text|offscreen)(\s|$)/;
+const HIDDEN_INLINE_STYLE = /display\s*:\s*none|visibility\s*:\s*hidden|clip\s*:\s*rect/i;
+
+const requestIdle: (cb: () => void) => void =
+  typeof requestIdleCallback === 'function'
+    ? cb => requestIdleCallback(() => cb(), { timeout: 100 })
+    : cb => setTimeout(cb, 0);
+
 /** A text node and the part of it [from, to) covered by a price match. */
 interface CoveredNode {
   node: Text;
@@ -138,6 +157,9 @@ export class PriceFixerContent {
   private shoppingSiteName: string | null = null;
   private sitePattern: SitePattern | null = null;
   private touchedNodes = new WeakSet<Node>();
+  /** Pending work of a time-sliced scan; null when idle. */
+  private scanQueue: Node[] | null = null;
+  private scanGeneration = 0;
   private rules: CompiledRules = {
     excludeSelector: null,
     excludePatterns: [],
@@ -563,7 +585,7 @@ export class PriceFixerContent {
       return;
     }
 
-    this.isProcessing = true;
+    this.cancelScan();
     this.priceChanges = [];
     this.pricesRounded = 0;
 
@@ -572,26 +594,62 @@ export class PriceFixerContent {
       this.bindTooltip();
     }
 
+    // Work is a stack in reverse document order. On known shopping sites the
+    // targeted price elements go first; the full-page scan then catches
+    // prices outside the known selectors.
+    const queue: Node[] = [];
+    if (document.body) {
+      queue.push(document.body);
+    }
+    if (this.sitePattern) {
+      const targets = getPriceElements(this.sitePattern);
+      for (let i = targets.length - 1; i >= 0; i--) {
+        queue.push(targets[i]);
+      }
+    }
+    this.scanQueue = queue;
+    this.runScanSlice(this.scanGeneration, recordStats);
+  }
+
+  /**
+   * Scan for up to SCAN_SLICE_MS, then yield. The first slice runs
+   * synchronously so small pages are done before this returns; large pages
+   * continue in idle time instead of blocking the main thread.
+   */
+  private runScanSlice(generation: number, recordStats: boolean): void {
+    const queue = this.scanQueue;
+    if (!queue || generation !== this.scanGeneration || this.isProcessing) {
+      return;
+    }
+    this.isProcessing = true;
+    const before = this.priceChanges.length;
+    const deadline = performance.now() + SCAN_SLICE_MS;
+    let n = 0;
     try {
-      // On known shopping sites, scan targeted price elements first
-      if (this.sitePattern) {
-        for (const el of getPriceElements(this.sitePattern)) {
-          this.scan(el);
+      while (queue.length > 0) {
+        this.scanNode(queue.pop() as Node, queue, false);
+        // performance.now() is not free either: check every few nodes
+        if ((++n & 31) === 0 && performance.now() > deadline) {
+          break;
         }
-      }
-
-      // Always do a full-page scan to catch prices outside known selectors
-      if (document.body) {
-        this.scan(document.body);
-      }
-
-      if (recordStats) {
-        this.saveStats(this.priceChanges);
       }
     } finally {
       this.observer?.takeRecords();
       this.isProcessing = false;
     }
+    if (recordStats && this.priceChanges.length > before) {
+      this.saveStats(this.priceChanges.slice(before));
+    }
+    if (queue.length > 0) {
+      requestIdle(() => this.runScanSlice(generation, recordStats));
+    } else {
+      this.scanQueue = null;
+    }
+  }
+
+  private cancelScan(): void {
+    this.scanGeneration++;
+    this.scanQueue = null;
   }
 
   private isOurs(node: Node): boolean {
@@ -599,8 +657,18 @@ export class PriceFixerContent {
     return !!el?.closest?.(`.${HIGHLIGHT_CLASS}, [${UNIT_ATTR}], [data-pf-skip]`);
   }
 
-  private shouldSkipElement(el: Element): boolean {
-    if (SKIP_TAGS.has(el.tagName.toLowerCase())) {
+  private static isEditable(el: Element): boolean {
+    const value = el.getAttribute('contenteditable');
+    return value !== null && value !== 'false';
+  }
+
+  /**
+   * `root` is true for the top of a walk (a mutation, a scan root): only then
+   * are ancestors checked for contenteditable. Descendants inherit the
+   * verdict from the walk, so they only need their own attribute checked.
+   */
+  private shouldSkipElement(el: Element, root = false): boolean {
+    if (SKIP_TAGS.has(el.localName)) {
       return true;
     }
     if (this.rules.excludeSelector && el.matches(this.rules.excludeSelector)) {
@@ -612,35 +680,51 @@ export class PriceFixerContent {
     if (el.hasAttribute('data-pf-skip')) {
       return true;
     }
-    if ((el as HTMLElement).isContentEditable) {
+    if (PriceFixerContent.isEditable(el)) {
       return true;
     }
-    const editable = el.closest('[contenteditable]');
-    if (editable && editable.getAttribute('contenteditable') !== 'false') {
-      return true;
+    if (root) {
+      const editable = el.closest('[contenteditable]');
+      if (editable && editable.getAttribute('contenteditable') !== 'false') {
+        return true;
+      }
     }
     return false;
   }
 
-  /** Walk a subtree, processing text nodes and split prices. */
+  /** Walk a subtree synchronously, processing text nodes and split prices. */
   private scan(node: Node): void {
+    const queue: Node[] = [];
+    this.scanNode(node, queue, true);
+    while (queue.length > 0) {
+      this.scanNode(queue.pop() as Node, queue, false);
+    }
+  }
+
+  /**
+   * Process one node; children of a container are pushed onto `queue` in
+   * reverse so they pop in document order.
+   */
+  private scanNode(node: Node, queue: Node[], root: boolean): void {
     if (node.nodeType === Node.TEXT_NODE) {
-      this.processTextNode(node as Text);
+      this.processTextNode(node as Text, root);
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
       return;
     }
-    const el = node as Element;
-    if (node.nodeType === Node.ELEMENT_NODE && this.shouldSkipElement(el)) {
-      return;
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element;
+      if (!el.isConnected || this.shouldSkipElement(el, root)) {
+        return;
+      }
+      if (this.isCompactCandidate(el)) {
+        this.processCompactElement(el);
+        return;
+      }
     }
-    if (node.nodeType === Node.ELEMENT_NODE && this.isCompactCandidate(el)) {
-      this.processCompactElement(el);
-      return;
-    }
-    for (const child of Array.from(node.childNodes)) {
-      this.scan(child);
+    for (let child = node.lastChild; child; child = child.previousSibling) {
+      queue.push(child);
     }
   }
 
@@ -680,7 +764,7 @@ export class PriceFixerContent {
       if (node.nodeType === Node.ELEMENT_NODE && this.shouldSkipElement(node as Element)) {
         return true;
       }
-      for (const child of Array.from(node.childNodes)) {
+      for (let child = node.firstChild; child; child = child.nextSibling) {
         if (!walk(child)) {
           return false;
         }
@@ -696,7 +780,7 @@ export class PriceFixerContent {
       if (node.nodeType === Node.TEXT_NODE) {
         nodes.push(node as Text);
       } else if (node.nodeType === Node.ELEMENT_NODE && !this.shouldSkipElement(node as Element)) {
-        for (const child of Array.from(node.childNodes)) {
+        for (let child = node.firstChild; child; child = child.nextSibling) {
           walk(child);
         }
       }
@@ -714,11 +798,37 @@ export class PriceFixerContent {
    * Screen-reader-only text (Amazon's `.a-offscreen`, Bootstrap `.sr-only`,
    * ...) sits next to the visible price and must not be merged with it.
    */
-  private isVisuallyHidden(node: Text): boolean {
+  private isVisuallyHidden(node: Text, root: Element, cache: Map<Element, boolean>): boolean {
     const el = node.parentElement;
     if (!el) {
       return false;
     }
+    const cached = cache.get(el);
+    if (cached !== undefined) {
+      return cached;
+    }
+    // Cheap markup conventions first; walk up to the compact root only.
+    let hidden = false;
+    for (let a: Element | null = el; a && a !== root; a = a.parentElement) {
+      const className = typeof a.className === 'string' ? a.className : '';
+      if (
+        a.hasAttribute('hidden') ||
+        SR_ONLY_CLASS.test(className) ||
+        HIDDEN_INLINE_STYLE.test(a.getAttribute('style') || '')
+      ) {
+        hidden = true;
+        break;
+      }
+    }
+    if (!hidden) {
+      hidden = this.isHiddenByStyle(el);
+    }
+    cache.set(el, hidden);
+    return hidden;
+  }
+
+  /** Forces style and layout: only called when a merge could go wrong. */
+  private isHiddenByStyle(el: Element): boolean {
     const style = window.getComputedStyle(el);
     if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
       return true;
@@ -742,10 +852,33 @@ export class PriceFixerContent {
       return;
     }
 
-    const hidden = all.filter(n => this.isVisuallyHidden(n));
-    const nodes = all.filter(n => !hidden.includes(n));
-    for (const node of hidden) {
-      this.processTextNode(node);
+    // Hidden (screen-reader) nodes must not be merged with visible ones. The
+    // check forces style/layout, so it only runs when a merge could actually
+    // go wrong: a node that is a complete price by itself (Amazon's offscreen
+    // "$9.99") next to other nodes carrying digits. Bare fragments ("$", "9",
+    // "99") have no hidden twin to collide with.
+    let hidden: Text[] = [];
+    let nodes = all;
+    let digitNodes = 0;
+    let completePrices = 0;
+    for (const n of all) {
+      if (DIGIT.test(n.data)) {
+        digitNodes++;
+        if (PricePatterns.mayContainPrice(n.data)) {
+          completePrices++;
+        }
+      }
+    }
+    if (completePrices > 0 && digitNodes > 1) {
+      const cache = new Map<Element, boolean>();
+      hidden = all.filter(n => this.isVisuallyHidden(n, el, cache));
+      if (hidden.length > 0) {
+        const hiddenSet = new Set(hidden);
+        nodes = all.filter(n => !hiddenSet.has(n));
+        for (const node of hidden) {
+          this.processTextNode(node, false);
+        }
+      }
     }
     if (nodes.length === 0) {
       return;
@@ -755,16 +888,14 @@ export class PriceFixerContent {
     // Nodes that look like pieces of one number ("$", "5", ".", "99") are
     // glued together; anything else ("Now", "57.8 ¢/ea") is kept apart by a
     // space so neighbouring prices and unit prices cannot fuse.
-    const isFragment = (t: string): boolean =>
-      /^\s*(?:[\d۰-۹٠-٩.,٬٫]+|[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼])\s*$/.test(t);
+    const isFragment = (t: string): boolean => FRAGMENT.test(t);
     let combined = '';
     const spans: Array<{ node: Text; start: number; end: number }> = [];
     let prevParent: Node | null = null;
     for (const node of nodes) {
       const data = node.data;
       const newParent = prevParent !== node.parentNode;
-      // ".99 today" continues a number started in the previous node
-      const continues = /^[.,٫٬][\d۰-۹٠-٩]/.test(data);
+      const continues = CONTINUES_NUMBER.test(data);
       if (
         combined &&
         newParent &&
@@ -776,7 +907,7 @@ export class PriceFixerContent {
         combined += ' ';
       }
       // "<span>5</span><sup>99</sup>" → superscript cents without a separator
-      if (/^\s*[\d۰-۹٠-٩]{2}\s*$/.test(data) && /[\d۰-۹٠-٩]$/.test(combined) && newParent) {
+      if (TWO_DIGITS.test(data) && ENDS_WITH_DIGIT.test(combined) && newParent) {
         combined += '.';
       }
       spans.push({ node, start: combined.length, end: combined.length + data.length });
@@ -826,7 +957,7 @@ export class PriceFixerContent {
         continue;
       }
       if (covered.length === 1 && !synthetic) {
-        this.processTextNode(covered[0].node);
+        this.processTextNode(covered[0].node, false);
         continue;
       }
       this.processSplitPrice(
@@ -929,7 +1060,11 @@ export class PriceFixerContent {
     return null;
   }
 
-  private processTextNode(node: Text): boolean {
+  /**
+   * `checkAncestors` is false when the caller already walked down from a
+   * vetted root (scan, compact element); mutations pass true.
+   */
+  private processTextNode(node: Text, checkAncestors = true): boolean {
     if (this.touchedNodes.has(node) || !node.isConnected) {
       return false;
     }
@@ -937,8 +1072,11 @@ export class PriceFixerContent {
     if (!originalText.trim() || !PricePatterns.mayContainPrice(originalText)) {
       return false;
     }
-    if (this.isOurs(node)) {
-      return false;
+    if (checkAncestors) {
+      const parent = node.parentElement;
+      if (this.isOurs(node) || (parent && this.shouldSkipElement(parent, true))) {
+        return false;
+      }
     }
 
     if (this.rules.excludePatterns.some(re => re.test(originalText))) {
@@ -1273,6 +1411,7 @@ export class PriceFixerContent {
    * Undo every change, newest first, touching only the nodes we inserted.
    */
   public restoreOriginal(): void {
+    this.cancelScan();
     this.hideTooltip();
     for (const record of [...this.records].reverse()) {
       if (record.textNode) {
