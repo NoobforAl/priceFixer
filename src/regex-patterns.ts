@@ -1,4 +1,4 @@
-import { regex } from 'regex';
+import { pattern, regex } from 'regex';
 
 /**
  * Price detection patterns built with the `regex` library.
@@ -12,36 +12,41 @@ import { regex } from 'regex';
  * matched dates, phone numbers, "ships in 15 days", "save 25%", etc.
  */
 
+// Building blocks are `pattern`s (or raw strings) rather than `regex`es so
+// they take the flags of the pattern they are interpolated into. Interpolating
+// a case-sensitive `regex` into an `i` pattern needs flag groups `(?i:)`,
+// which Node < 23 lacks.
+
 // Digits: ASCII, Persian (۰-۹) and Arabic-Indic (٠-٩)
-const digit = regex`[\d۰-۹٠-٩]`;
+const digit = String.raw`[\d۰-۹٠-٩]`;
 // Separators: "." "," plus Arabic thousands (٬ U+066C) and decimal (٫ U+066B)
-const groupSep = regex`[.,٬\x20\u00a0\u202f]`;
-const decimalSep = regex`[.,٫]`;
+const groupSep = String.raw`[.,٬\x20\u00a0\u202f]`;
+const decimalSep = String.raw`[.,٫]`;
 
 // Shared amount grammar (interpolated as a pattern, not a string):
 //   1,234.99 / 1.234,99 / 1234 / 12,345 / 5.99 / 0.99 / ۱٬۲۹۹٬۰۰۰
 // `(?!digit)` prevents matching only the first 3 digits of "$1000".
-const amount = regex`
+const amount = pattern`
   (?: ${digit}{1,3} (?: ${groupSep} ${digit}{3} )+ | ${digit}+ )
   (?: ${decimalSep} ${digit}{1,2} )?
   (?! ${digit} )
 `;
 
 // Symbols that appear before the number ($5.99, € 5,99, £5, ￥99, ₺49)
-const prefixSymbol = regex`[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼]`;
+const prefixSymbol = pattern`[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼]`;
 // Symbols that appear after the number (5,99 €, 5.99€, 100₽, 49₺)
-const suffixSymbol = regex`[€£₽₴₸₫₺﷼]`;
+const suffixSymbol = pattern`[€£₽₴₸₫₺﷼]`;
 
 // Currency words/abbreviations written before the number
-const prefixWord = regex`Rs\.? | RM | R\$ | US\$ | CA\$ | AU\$ | NT\$ | HK\$ | S\$`;
+const prefixWord = pattern`Rs\.? | RM | R\$ | US\$ | CA\$ | AU\$ | NT\$ | HK\$ | S\$`;
 // Currency words written after the number
-const suffixWord = regex`
+const suffixWord = pattern`
   تومان | تومن | ریال | ﷼ |
   元 | 円 | 원 |
   zł | Kč | kr\.? | lei | Ft | руб\.? | грн | TL | Lt | din\.?
 `;
 
-const ISO_CODES = regex`
+const ISO_CODES = pattern`
   USD | EUR | GBP | JPY | CNY | RMB | INR | RUB | CAD | AUD | NZD |
   CHF | SEK | NOK | DKK | PLN | CZK | HUF | BGN | RON | TRY | ZAR |
   BRL | MXN | ARS | CLP | COP | PEN | UYU | IRR | IRT | AED | SAR |
@@ -50,8 +55,8 @@ const ISO_CODES = regex`
 
 // Not followed by a letter — the `v`-flag-safe equivalent of `\b` for
 // non-ASCII words like تومان.
-const notLetter = regex`(?! \p{L} )`;
-const notDigitOrSep = regex`(?<! [\d۰-۹٠-٩.,٬٫] )`;
+const notLetter = pattern`(?! \p{L} )`;
+const notDigitOrSep = pattern`(?<! [\d۰-۹٠-٩.,٬٫] )`;
 
 export const RegexPatterns = {
   // "$5.99", "US$ 1,299.00", "€ 12,50", "₹499", "￥99.00", "Rs. 499"
