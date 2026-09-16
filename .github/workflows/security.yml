@@ -9,11 +9,17 @@ on:
     # Run security scan weekly on Sundays
     - cron: '0 6 * * 0'
 
+# CodeQL uploads results to code scanning, which needs security-events: write.
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
 jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
