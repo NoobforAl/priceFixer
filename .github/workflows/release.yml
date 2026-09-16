@@ -15,6 +15,7 @@ name: Release
 #     CHROME_REFRESH_TOKEN    OAuth refresh token
 #
 #   Firefox Add-ons / AMO (https://addons.mozilla.org/developers/addon/api/key/)
+#     With AMO_CHANNEL=unlisted the signed .xpi is attached to the GitHub release.
 #     AMO_JWT_ISSUER          API key (JWT issuer)
 #     AMO_JWT_SECRET          API secret
 #
@@ -93,7 +94,10 @@ jobs:
   github-release:
     name: GitHub release
     runs-on: ubuntu-latest
-    needs: build
+    # Runs after the store jobs so the Mozilla-signed .xpi (when AMO secrets
+    # are configured) is attached alongside the raw zips.
+    needs: [build, publish-chrome, publish-firefox]
+    if: ${{ always() && needs.build.result == 'success' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -108,6 +112,7 @@ jobs:
           files: |
             packages/price-fixer-chrome.zip
             packages/price-fixer-firefox.zip
+            packages/*.xpi
 
   publish-chrome:
     name: Publish to Chrome Web Store
@@ -207,5 +212,5 @@ jobs:
         if: steps.check.outputs.configured == 'true'
         with:
           name: price-fixer-firefox-signed
-          path: web-ext-artifacts/
+          path: web-ext-artifacts/*.xpi
           if-no-files-found: ignore

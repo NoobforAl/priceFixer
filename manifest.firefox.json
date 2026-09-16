@@ -44,7 +44,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "price-fixer@example.com",
+      "id": "price-fixer@noobforal.github.io",
       "strict_min_version": "116.0",
       "data_collection_permissions": {
         "required": ["none"]
