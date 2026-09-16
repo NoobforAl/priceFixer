@@ -8,6 +8,14 @@ interface TabState {
   processedCount: number;
 }
 
+interface BackgroundMessage {
+  action: string;
+  enabled?: boolean;
+  processedCount?: number;
+}
+
+type MessageResponse = TabState | { success: true } | { error: string };
+
 class PriceFixerBackground {
   private tabStates: Map<number, TabState> = new Map();
 
@@ -79,8 +87,8 @@ class PriceFixerBackground {
       });
 
       browser.runtime.onMessage.addListener(
-        (message: any, sender: chrome.runtime.MessageSender) => {
-          return new Promise(resolve => {
+        (message: BackgroundMessage, sender: chrome.runtime.MessageSender) => {
+          return new Promise<MessageResponse>(resolve => {
             this.handleMessage(message, sender, resolve);
           });
         }
@@ -89,17 +97,17 @@ class PriceFixerBackground {
   }
 
   private showWelcomeNotification(): void {
-    const notification = {
-      type: 'basic' as const,
+    const notification: chrome.notifications.NotificationCreateOptions = {
+      type: 'basic',
       iconUrl: 'icons/icon-128.png',
       title: 'Price Fixer Installed!',
       message: 'Automatically rounds up prices on web pages.',
     };
 
     if (typeof chrome !== 'undefined' && chrome.notifications) {
-      chrome.notifications.create('welcome', notification as any);
+      chrome.notifications.create('welcome', notification);
     } else if (typeof browser !== 'undefined' && browser.notifications) {
-      (browser.notifications as any).create('welcome', notification);
+      browser.notifications.create('welcome', notification);
     }
   }
 
@@ -144,7 +152,11 @@ class PriceFixerBackground {
     }
   }
 
-  private handleMessage(message: any, sender: any, sendResponse: (response: any) => void): void {
+  private handleMessage(
+    message: BackgroundMessage,
+    sender: chrome.runtime.MessageSender,
+    sendResponse: (response: MessageResponse) => void
+  ): void {
     const tabId = sender.tab?.id;
 
     if (!tabId) {
@@ -154,13 +166,12 @@ class PriceFixerBackground {
 
     switch (message.action) {
       case 'getTabState':
-        const state = this.tabStates.get(tabId) || { enabled: true, processedCount: 0 };
-        sendResponse(state);
+        sendResponse(this.getTabState(tabId));
         break;
 
       case 'updateTabState':
         this.tabStates.set(tabId, {
-          enabled: message.enabled,
+          enabled: message.enabled ?? true,
           processedCount: message.processedCount || 0,
         });
         sendResponse({ success: true });
@@ -182,14 +193,14 @@ class PriceFixerBackground {
       return;
     }
 
-    api.tabs.query({ active: true, currentWindow: true }, (tabs: any[]) => {
+    api.tabs.query({ active: true, currentWindow: true }, tabs => {
       if (tabs[0]?.id) {
         this.sendToContentScript(tabs[0].id, { action: 'toggle' });
       }
     });
   }
 
-  private sendToContentScript(tabId: number, message: any): void {
+  private sendToContentScript(tabId: number, message: { action: string }): void {
     if (typeof chrome !== 'undefined' && chrome.tabs) {
       chrome.tabs.sendMessage(tabId, message).catch(() => {
         // Tab might not have content script injected
@@ -211,10 +222,10 @@ class PriceFixerBackground {
 }
 
 // Initialize background script
-const priceFixerBackground = new PriceFixerBackground();
+new PriceFixerBackground();
 
 // Export for testing (only in test environment)
-declare const module: any;
+declare const module: { exports?: Record<string, unknown> } | undefined;
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { PriceFixerBackground };
 }
