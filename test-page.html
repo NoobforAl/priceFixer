@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Fixer - Test Page</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #764ba2; margin-bottom: 8px; }
+        .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+        h2 {
+            color: #667eea;
+            margin: 24px 0 12px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #667eea;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .card h3 { font-size: 14px; color: #999; margin-bottom: 8px; }
+        .price { font-size: 24px; font-weight: 700; color: #222; }
+        .price-sm { font-size: 18px; font-weight: 600; color: #333; }
+        .price-list { list-style: none; }
+        .price-list li { padding: 6px 0; border-bottom: 1px solid #eee; }
+        .price-list li:last-child { border: none; }
+        .badge { display: inline-block; background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 11px; color: #666; margin-left: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f9f9f9; font-size: 13px; color: #666; }
+        .old-price { text-decoration: line-through; color: #999; margin-right: 8px; }
+        .sale-price { color: #e53e3e; font-weight: 700; }
+        .tag { display: inline-block; background: #e53e3e; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px; }
+        .note { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px; font-size: 13px; margin: 16px 0; }
+        .subscription { display: flex; align-items: baseline; gap: 4px; }
+        .per-unit { font-size: 13px; color: #666; }
+        .banner {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .banner .big-price { font-size: 48px; font-weight: 800; }
+    </style>
+</head>
+<body>
+
+<h1>Price Fixer - Developer Test Page</h1>
+<p class="subtitle">Load the extension, then open this page to verify price detection and rounding. Each section targets a specific pattern.</p>
+
+<!-- Hero banner -->
+<div class="banner">
+    <div>Everything from</div>
+    <div class="big-price">$4.99</div>
+    <div>Limited time offer</div>
+</div>
+
+<!-- Section 1: Basic USD prices -->
+<h2>1. Basic USD Prices</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Charm cents → next whole unit</h3>
+        <div class="price">$0.99</div>
+    </div>
+    <div class="card">
+        <h3>Under $10</h3>
+        <div class="price">$5.99</div>
+    </div>
+    <div class="card">
+        <h3>Under $10</h3>
+        <div class="price">$9.49</div>
+    </div>
+    <div class="card">
+        <h3>Tens, .99 cents</h3>
+        <div class="price">$14.99</div>
+    </div>
+    <div class="card">
+        <h3>$10-99</h3>
+        <div class="price">$49.95</div>
+    </div>
+    <div class="card">
+        <h3>$10-99</h3>
+        <div class="price">$79.99</div>
+    </div>
+    <div class="card">
+        <h3>Hundreds, .99 cents</h3>
+        <div class="price">$199.99</div>
+    </div>
+    <div class="card">
+        <h3>Round price — must not change</h3>
+        <div class="price">$500.00</div>
+    </div>
+    <div class="card">
+        <h3>$100+</h3>
+        <div class="price">$1,299.99</div>
+    </div>
+</div>
+
+<!-- Section 2: Other currencies -->
+<h2>2. International Currencies</h2>
+<div class="grid">
+    <div class="card">
+        <h3>British Pound</h3>
+        <div class="price">&pound;49.95</div>
+    </div>
+    <div class="card">
+        <h3>Euro (symbol prefix)</h3>
+        <div class="price">&euro;29.99</div>
+    </div>
+    <div class="card">
+        <h3>Euro (code suffix)</h3>
+        <div class="price">299 EUR</div>
+    </div>
+    <div class="card">
+        <h3>Japanese Yen</h3>
+        <div class="price">&yen;2,980</div>
+    </div>
+    <div class="card">
+        <h3>Indian Rupee</h3>
+        <div class="price">&#8377;1,499</div>
+    </div>
+    <div class="card">
+        <h3>Korean Won</h3>
+        <div class="price">&#8361;49,900</div>
+    </div>
+    <div class="card">
+        <h3>Russian Ruble</h3>
+        <div class="price">&#8381;1,999</div>
+    </div>
+    <div class="card">
+        <h3>USD code</h3>
+        <div class="price">149.99 USD</div>
+    </div>
+</div>
+
+<!-- Section 3: European number format -->
+<h2>3. European Number Formats</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Comma decimal (German/French)</h3>
+        <div class="price">&euro;1.299,99</div>
+    </div>
+    <div class="card">
+        <h3>Comma decimal small</h3>
+        <div class="price">&euro;49,95</div>
+    </div>
+    <div class="card">
+        <h3>Dot thousands + comma decimal</h3>
+        <div class="price">&euro;2.499,00</div>
+    </div>
+</div>
+
+<!-- Section 4: Price ranges -->
+<h2>4. Price Ranges</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Dash range</h3>
+        <div class="price-sm">$100 - $200</div>
+    </div>
+    <div class="card">
+        <h3>En-dash range</h3>
+        <div class="price-sm">$29.99&ndash;$59.99</div>
+    </div>
+    <div class="card">
+        <h3>"to" range</h3>
+        <div class="price-sm">$15.99 to $24.99</div>
+    </div>
+</div>
+
+<!-- Section 5: Sale / was-now prices -->
+<h2>5. Sale &amp; Was/Now Prices</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Strikethrough + sale</h3>
+        <span class="old-price">$79.99</span>
+        <span class="sale-price">$49.99</span>
+        <span class="tag">SALE</span>
+    </div>
+    <div class="card">
+        <h3>Was / Now</h3>
+        <div class="price-sm">Was $129.99, Now $89.99</div>
+    </div>
+    <div class="card">
+        <h3>Original / Sale</h3>
+        <div class="price-sm">Original: $59.99 | Sale: $39.99</div>
+    </div>
+</div>
+
+<!-- Section 6: Subscription prices -->
+<h2>6. Subscription Prices</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Per month</h3>
+        <div class="subscription">
+            <span class="price">$9.99</span>
+            <span class="per-unit">/month</span>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Per year</h3>
+        <div class="subscription">
+            <span class="price">$99.99</span>
+            <span class="per-unit">/year</span>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Per user per month</h3>
+        <div class="price-sm">$14.99/user/month</div>
+    </div>
+</div>
+
+<!-- Section 7: "Starting at" phrases -->
+<h2>7. "Starting At" / Multilingual</h2>
+<div class="grid">
+    <div class="card">
+        <h3>English</h3>
+        <div class="price-sm">Starting at $19.99</div>
+    </div>
+    <div class="card">
+        <h3>English (from)</h3>
+        <div class="price-sm">From $49.99</div>
+    </div>
+    <div class="card">
+        <h3>German (ab)</h3>
+        <div class="price-sm">ab &euro;29,99</div>
+    </div>
+    <div class="card">
+        <h3>French (&#224; partir de)</h3>
+        <div class="price-sm">&#224; partir de &euro;14,99</div>
+    </div>
+    <div class="card">
+        <h3>Spanish (desde)</h3>
+        <div class="price-sm">desde &euro;9,99</div>
+    </div>
+</div>
+
+<!-- Section 8: Table with prices (common e-commerce layout) -->
+<h2>8. Product Table</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Shipping</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Wireless Mouse</td>
+            <td>$29.99</td>
+            <td>$4.99</td>
+            <td>$34.98</td>
+        </tr>
+        <tr>
+            <td>USB-C Cable</td>
+            <td>$7.49</td>
+            <td>$2.99</td>
+            <td>$10.48</td>
+        </tr>
+        <tr>
+            <td>Mechanical Keyboard</td>
+            <td>$149.95</td>
+            <td>Free</td>
+            <td>$149.95</td>
+        </tr>
+        <tr>
+            <td>Monitor Stand</td>
+            <td>$44.99</td>
+            <td>$9.99</td>
+            <td>$54.98</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Section 9: Large numbers with thousand separators -->
+<h2>9. Large Numbers</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Thousands (comma)</h3>
+        <div class="price">$2,499.99</div>
+    </div>
+    <div class="card">
+        <h3>Ten thousands</h3>
+        <div class="price">$12,999.00</div>
+    </div>
+    <div class="card">
+        <h3>Hundred thousands</h3>
+        <div class="price">$349,999.99</div>
+    </div>
+</div>
+
+<!-- Section 10: Edge cases -->
+<h2>10. Edge Cases</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Already round price (should not change)</h3>
+        <div class="price">$10.00</div>
+    </div>
+    <div class="card">
+        <h3>One cent off</h3>
+        <div class="price">$9.99</div>
+    </div>
+    <div class="card">
+        <h3>Price in text</h3>
+        <p>Get the premium plan for just $19.99 per month and save big!</p>
+    </div>
+    <div class="card">
+        <h3>Multiple prices in one element</h3>
+        <p>Choose between $5.99, $9.99, or $14.99 plans.</p>
+    </div>
+    <div class="card">
+        <h3>No-break space before currency</h3>
+        <div class="price-sm">29,99&nbsp;&euro;</div>
+    </div>
+    <div class="card">
+        <h3>Negative number (not a price)</h3>
+        <p>Temperature dropped to -4.99&deg;C overnight.</p>
+    </div>
+</div>
+
+<!-- Section 11: Dynamic content test -->
+
+<h2>11. Dynamic Content (MutationObserver Test)</h2>
+<div class="grid">
+    <div class="card" id="dynamic-card">
+        <h3>Click the button to add prices dynamically</h3>
+        <button onclick="addDynamicPrice()" style="padding: 8px 16px; border-radius: 6px; border: 1px solid #764ba2; background: white; color: #764ba2; cursor: pointer; font-weight: 600;">
+            Add Price
+        </button>
+        <div id="dynamic-prices" style="margin-top: 12px;"></div>
+    </div>
+</div>
+
+<script>
+    let counter = 0;
+    const prices = ['$3.99', '$17.49', '$89.95', '$249.99', '$1,099.00', '€49,99', '£34.95', '¥4,980'];
+    function addDynamicPrice() {
+        const container = document.getElementById('dynamic-prices');
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 6px 0; font-size: 18px; font-weight: 600;';
+        div.textContent = 'Item ' + (counter + 1) + ': ' + prices[counter % prices.length];
+        container.appendChild(div);
+        counter++;
+    }
+</script>
+
+<!-- Section 12: Split prices (Amazon / Walmart style markup) -->
+<h2>12. Split Prices (one price across several elements)</h2>
+<div class="grid">
+    <div class="card">
+        <h3>Amazon-style</h3>
+        <div class="price a-price" data-expect="$6"><span class="a-price-symbol">$</span><span class="a-price-whole">5<span class="a-price-decimal">.</span></span><span class="a-price-fraction" style="font-size:14px;vertical-align:top">99</span></div>
+    </div>
+    <div class="card">
+        <h3>Superscript cents, no separator</h3>
+        <div class="price" data-expect="$20">$<span>19</span><sup style="font-size:14px">99</sup></div>
+    </div>
+    <div class="card">
+        <h3>Symbol in its own span</h3>
+        <div class="price" data-expect="€30"><span>€</span><span>29,99</span></div>
+    </div>
+</div>
+
+<!-- Section 13: Must NOT change -->
+<h2>13. Not Prices (must stay untouched)</h2>
+<div class="card">
+    <ul class="price-list" id="not-prices">
+        <li>Copyright 2024 Acme Inc. All rights reserved.</li>
+        <li>Call us: 555-1234 or 800-555-0199</li>
+        <li>Order #123456 placed on 2024-01-15</li>
+        <li>Ships in 15 days · Ages 3-12 · Save 25% today</li>
+        <li>4.7 out of 5 stars, 1,234 ratings</li>
+        <li>12 monthly payments · Version 1.2.3</li>
+        <li><code>const price = "$5.99";</code></li>
+        <li contenteditable="true">Editable: $5.99</li>
+    </ul>
+</div>
+
+
+<div class="note">
+    <strong>How to test:</strong>
+    <ol style="margin-top: 8px; padding-left: 20px;">
+        <li>Build the extension: <code>npm run build</code> (Chrome) or <code>npm run build:firefox</code> (Firefox)</li>
+        <li>Load it in Chrome: go to <code>chrome://extensions</code> &rarr; Enable Developer Mode &rarr; Load unpacked &rarr; select the <code>dist/</code> folder</li>
+        <li>Load it in Firefox: go to <code>about:debugging#/runtime/this-firefox</code> &rarr; Load Temporary Add-on &rarr; select <code>dist-firefox/manifest.json</code></li>
+        <li>Open this page in the browser with the extension loaded</li>
+        <li>Verify prices are highlighted or replaced according to the rounding rules</li>
+        <li>Click "Add Price" to test MutationObserver on dynamic content</li>
+        <li>Use the popup to toggle modes and per-site settings</li>
+    </ol>
+</div>
+
+</body>
+</html>

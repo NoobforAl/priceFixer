@@ -1,0 +1,211 @@
+name: Release
+
+# Runs when a version tag is pushed:  git tag v1.2.0 && git push origin v1.2.0
+#
+# 1. validate + build Chrome and Firefox packages
+# 2. attach both zips to a GitHub release
+# 3. publish to the stores — each store job only runs when its secrets exist.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#
+#   Chrome Web Store (https://developer.chrome.com/docs/webstore/using-api)
+#     CHROME_EXTENSION_ID     the extension's ID in the Web Store
+#     CHROME_CLIENT_ID        OAuth client ID
+#     CHROME_CLIENT_SECRET    OAuth client secret
+#     CHROME_REFRESH_TOKEN    OAuth refresh token
+#
+#   Firefox Add-ons / AMO (https://addons.mozilla.org/developers/addon/api/key/)
+#     AMO_JWT_ISSUER          API key (JWT issuer)
+#     AMO_JWT_SECRET          API secret
+#
+# Optional variables (Settings → Variables):
+#     CHROME_PUBLISH_TARGET   "default" (public) or "trustedTesters"; default: default
+#     AMO_CHANNEL             "listed" or "unlisted"; default: listed
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  build:
+    name: Validate and build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Read version
+        id: meta
+        run: |
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check tag matches package.json version
+        run: |
+          if [ "v${{ steps.meta.outputs.version }}" != "${{ steps.meta.outputs.tag }}" ]; then
+            echo "Tag ${{ steps.meta.outputs.tag }} does not match package.json version ${{ steps.meta.outputs.version }}"
+            exit 1
+          fi
+          for m in manifest.json manifest.firefox.json; do
+            v=$(node -p "require('./$m').version")
+            if [ "$v" != "${{ steps.meta.outputs.version }}" ]; then
+              echo "$m version $v does not match package.json ${{ steps.meta.outputs.version }}"
+              exit 1
+            fi
+          done
+
+      - run: npm run validate
+
+      - name: Build and package
+        run: npm run package
+
+      - name: Lint Firefox package
+        run: npx --yes web-ext lint --source-dir dist-firefox --warnings-as-errors=false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: price-fixer-chrome
+          path: price-fixer-chrome.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: price-fixer-firefox
+          path: price-fixer-firefox.zip
+          if-no-files-found: error
+
+  github-release:
+    name: GitHub release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - name: Create release with packages
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Price Fixer ${{ needs.build.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            packages/price-fixer-chrome.zip
+            packages/price-fixer-firefox.zip
+
+  publish-chrome:
+    name: Publish to Chrome Web Store
+    runs-on: ubuntu-latest
+    needs: build
+    environment: chrome-web-store
+    # Only when the store secrets are configured
+    if: ${{ vars.CHROME_PUBLISH != 'false' }}
+    steps:
+      - name: Check secrets
+        id: check
+        env:
+          EXT_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$EXT_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
+            echo "Chrome Web Store secrets not set — skipping publish"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          name: price-fixer-chrome
+
+      - name: Upload and publish
+        if: steps.check.outputs.configured == 'true'
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          TARGET: ${{ vars.CHROME_PUBLISH_TARGET || 'default' }}
+        run: |
+          npx --yes chrome-webstore-upload-cli@3 upload \
+            --source price-fixer-chrome.zip \
+            --extension-id "$EXTENSION_ID" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --refresh-token "$REFRESH_TOKEN" \
+            --auto-publish \
+            --publish-target "$TARGET"
+
+  publish-firefox:
+    name: Publish to Firefox Add-ons
+    runs-on: ubuntu-latest
+    needs: build
+    environment: firefox-addons
+    if: ${{ vars.AMO_PUBLISH != 'false' }}
+    steps:
+      - name: Check secrets
+        id: check
+        env:
+          ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -z "$ISSUER" ] || [ -z "$SECRET" ]; then
+            echo "AMO secrets not set — skipping publish"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Build Firefox package
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          npm ci
+          npm run build:firefox
+
+      - name: Sign and submit to AMO
+        if: steps.check.outputs.configured == 'true'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          CHANNEL: ${{ vars.AMO_CHANNEL || 'listed' }}
+        run: |
+          npx --yes web-ext sign \
+            --source-dir dist-firefox \
+            --artifacts-dir web-ext-artifacts \
+            --channel "$CHANNEL" \
+            --approval-timeout 0
+
+      - uses: actions/upload-artifact@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          name: price-fixer-firefox-signed
+          path: web-ext-artifacts/
+          if-no-files-found: ignore
