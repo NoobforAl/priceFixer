@@ -94,6 +94,9 @@ extension is not active on a page, click **Enable on this site**.
 - Click the toolbar icon: global on/off, per-site on/off, Highlight/Replace,
   **Rescan page**, **Show originals**, and the list of what changed on the page.
 - `Ctrl+Shift+P` (`⌘⇧P` on macOS) toggles the extension.
+- **Settings** (top of the popup, or the browser's extension options) opens a
+  full-page settings tab: the same switches, blocked sites, every per-site
+  switch you have set, rules for any site, statistics, and a reset.
 - **Security** (in the popup):
   - _Pause on payment pages_ (on by default) — checkout pages, card forms and
     payment gateways (PayPal, Stripe, Klarna, Shaparak, …) are never changed, so
@@ -148,6 +151,8 @@ src/
 ├── background.ts        # keyboard shortcut, inject into open tabs on install
 └── __tests__/
 popup.html / popup.js    # toolbar popup
+options.html / options.js # full-page settings (options_ui, opens in a tab)
+ui-common.js             # helpers shared by popup and options pages
 icons/icon.svg           # source of all icon sizes
 scripts/                 # dev server, packaging
 test-page.html           # manual test page

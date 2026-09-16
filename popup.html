@@ -54,6 +54,9 @@
             color: var(--muted);
         }
 
+        .header-side { display: flex; align-items: baseline; gap: 8px; }
+        .settings-btn { font-weight: 600; }
+
         .card {
             background: var(--card);
             border: 1px solid var(--border);
@@ -366,7 +369,10 @@
     <div class="container">
         <div class="header">
             <h1>Price Fixer</h1>
-            <div class="subtitle">$5.99 is $6</div>
+            <div class="header-side">
+                <span class="subtitle">$5.99 is $6</span>
+                <button class="link-btn settings-btn" id="openOptions" title="Open settings in a new tab" aria-label="Open settings in a new tab">Settings &#x2197;</button>
+            </div>
         </div>
 
         <div class="notice" id="notice" role="status">
@@ -486,6 +492,7 @@
         <div class="footer">Toggle with <kbd>Ctrl+Shift+P</kbd></div>
     </div>
 
+    <script src="ui-common.js"></script>
     <script src="popup.js"></script>
 </body>
 

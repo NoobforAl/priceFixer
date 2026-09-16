@@ -12,7 +12,8 @@ Written in TypeScript, bundled with Webpack.
 - **Bundler**: Webpack 5 (entry points: `src/background.ts`, `src/content.ts`)
 - **Testing**: Jest 30 with jsdom environment, ts-jest
 - **Linting**: ESLint 10 (flat config `eslint.config.js`) + typescript-eslint
-  8 + Prettier 3.8
+  8 + Prettier 3.8. `npm run lint` / `format:check` cover `src/`, the plain-JS
+  pages (`popup.js`, `options.js`, `ui-common.js`) and `scripts/`.
 - **Regex**: Uses `regex` npm package for readable tagged template patterns
 - **Git hooks**: Husky 9 + lint-staged 17 (pre-commit: eslint --fix + prettier)
 
@@ -112,6 +113,13 @@ npm run dev:test:firefox  # Build Firefox + open test page
   (bsdtar on Windows, `zip` elsewhere). CI uses it.
 - `popup.html` / `popup.js` - Extension popup UI (vanilla JS). Dark card design
   with mode toggle, per-site enable/disable, stats dashboard, changes list.
+- `options.html` / `options.js` - Full-page settings (`options_ui`,
+  `open_in_tab`), opened from the popup's **Settings** button via
+  `runtime.openOptionsPage()`. Reads/writes `storage.sync` directly; content
+  scripts follow through `storage.onChanged`. Adds what the popup can't show:
+  every `siteSettings` entry, rules for any domain, reset stats/settings.
+- `ui-common.js` - `api` / `isPromiseApi` detection and `normalizeDomain()`,
+  loaded as globals by both pages.
 - `manifest.json` - Chrome Manifest V3.
 - `manifest.firefox.json` - Firefox Manifest V3 (uses `background.scripts`
   instead of `service_worker`).

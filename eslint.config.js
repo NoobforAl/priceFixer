@@ -54,7 +54,46 @@ module.exports = [
     },
   },
 
-  // JS files (popup.js, configs)
+  // Plain-script extension pages (popup.js, options.js, ui-common.js): same
+  // style rules as the TypeScript sources
+  {
+    files: ['popup.js', 'options.js', 'ui-common.js'],
+    languageOptions: {
+      globals: {
+        chrome: 'readonly',
+        browser: 'readonly',
+        document: 'readonly',
+        window: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        Map: 'readonly',
+        // ui-common.js globals
+        api: 'readonly',
+        isPromiseApi: 'readonly',
+        normalizeDomain: 'readonly',
+      },
+    },
+    rules: {
+      'prefer-const': 'warn',
+      'no-var': 'warn',
+      'no-console': 'warn',
+      eqeqeq: ['warn', 'always'],
+      curly: ['warn', 'all'],
+      'no-throw-literal': 'warn',
+      'prefer-template': 'warn',
+      'no-duplicate-imports': 'warn',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    // Its top-level bindings are consumed by the other pages
+    files: ['ui-common.js'],
+    rules: { '@typescript-eslint/no-unused-vars': 'off' },
+  },
+
+  // Node scripts and configs
   {
     files: ['**/*.js'],
     rules: {

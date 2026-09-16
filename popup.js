@@ -1,11 +1,7 @@
 /**
- * Popup script for Price Fixer extension
+ * Popup script for Price Fixer extension.
+ * `api`, `isPromiseApi` and `normalizeDomain` come from ui-common.js.
  */
-
-// Firefox exposes a promise-based `browser` namespace; Chrome uses callbacks
-// on `chrome.tabs.sendMessage` (and rejects a function in the options slot).
-const isPromiseApi = typeof browser !== 'undefined' && !!browser.runtime;
-const api = isPromiseApi ? browser : chrome;
 
 class PopupController {
   constructor() {
@@ -41,6 +37,7 @@ class PopupController {
       document.getElementById('changesSection').style.display = 'none';
     });
     on('noticeAction', () => this.enableOnThisSite());
+    on('openOptions', () => this.openOptions());
     on('rulesToggle', () => this.toggleRules());
     on('rulesSave', () => this.saveRules());
     on('securityToggle', () => this.toggleSecurity());
@@ -59,6 +56,16 @@ class PopupController {
     });
   }
 
+  /** Full-page settings in a new tab (options_ui.open_in_tab). */
+  async openOptions() {
+    try {
+      await api.runtime.openOptionsPage();
+      window.close();
+    } catch {
+      this.showNotice('Could not open the settings page.');
+    }
+  }
+
   // ─── Security: payment pause + blocklist ────────────────────────────
 
   async toggleSecurity() {
@@ -72,23 +79,8 @@ class PopupController {
     }
   }
 
-  /** "https://www.Shop.com/x" or "shop.com" → "shop.com"; "" when invalid. */
   normalizeDomain(input) {
-    let value = String(input || '')
-      .trim()
-      .toLowerCase();
-    if (/^[a-z]+:\/\//.test(value)) {
-      try {
-        value = new URL(value).hostname;
-      } catch {
-        return '';
-      }
-    }
-    value = value
-      .split(/[/?#:]/)[0]
-      .replace(/^www\./, '')
-      .replace(/\.+$/, '');
-    return /^[a-z0-9.-]+$/.test(value) ? value : '';
+    return normalizeDomain(input);
   }
 
   async readBlockedSites() {
@@ -180,7 +172,7 @@ class PopupController {
     }
     const current = this.domain();
     const blockBtn = document.getElementById('blockSiteBtn');
-    const isBlocked = list.some(d => current === d || current.endsWith('.' + d));
+    const isBlocked = list.some(d => current === d || current.endsWith(`.${d}`));
     blockBtn.textContent = isBlocked ? 'Unblock this site' : 'Block this site';
     blockBtn.disabled = !current;
   }
@@ -265,7 +257,7 @@ class PopupController {
   renderRuleErrors() {
     const errors = (this.status && this.status.ruleErrors) || [];
     document.getElementById('rulesErrors').textContent = errors.length
-      ? 'Ignored (invalid):\n' + errors.join('\n')
+      ? `Ignored (invalid):\n${errors.join('\n')}`
       : '';
   }
 
@@ -366,7 +358,7 @@ class PopupController {
     }
     let origin;
     try {
-      origin = new URL(this.tab.url).origin + '/*';
+      origin = `${new URL(this.tab.url).origin}/*`;
     } catch {
       return;
     }
@@ -535,7 +527,7 @@ class PopupController {
       next.textContent = change.rounded;
       const diff = document.createElement('span');
       diff.className = 'diff';
-      diff.textContent = (change.count > 1 ? `×${change.count} · ` : '') + `+${change.difference}`;
+      diff.textContent = `${change.count > 1 ? `×${change.count} · ` : ''}+${change.difference}`;
       item.append(original, arrow, next, diff);
       list.appendChild(item);
     }

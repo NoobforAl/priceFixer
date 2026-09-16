@@ -1,6 +1,6 @@
 {
   "name": "price-fixer-extension",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Exposes charm pricing: shows $5.99 as the $6 it really is",
   "main": "dist/content.js",
   "scripts": {
@@ -13,10 +13,10 @@
     "dev:test:firefox": "npm run build:firefox && node scripts/dev-server.js",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch --passWithNoTests",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"*.json\" \"*.md\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"*.json\" \"*.md\"",
+    "lint": "eslint src/ popup.js options.js ui-common.js scripts/",
+    "lint:fix": "eslint src/ popup.js options.js ui-common.js scripts/ --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"*.js\" \"scripts/**/*.js\" \"*.json\" \"*.md\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.js\" \"scripts/**/*.js\" \"*.json\" \"*.md\"",
     "type-check": "tsc --noEmit",
     "prepare": "husky",
     "validate": "npm run type-check && npm run lint && npm run format:check && npm test",
