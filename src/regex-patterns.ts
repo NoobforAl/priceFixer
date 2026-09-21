@@ -19,15 +19,21 @@ import { pattern, regex } from 'regex';
 
 // Digits: ASCII, Persian (۰-۹) and Arabic-Indic (٠-٩)
 const digit = String.raw`[\d۰-۹٠-٩]`;
-// Separators: "." "," plus Arabic thousands (٬ U+066C) and decimal (٫ U+066B)
-const groupSep = String.raw`[.,٬\x20\u00a0\u202f]`;
+// Separators: "." "," Arabic thousands (٬ U+066C) and decimal (٫ U+066B),
+// plus the Swiss/French apostrophe thousands separator (straight ' U+0027 and typographic ’ U+2019: "1'234.50").
+const groupSep = String.raw`[.,٬'’\x20\u00a0\u202f]`;
 const decimalSep = String.raw`[.,٫]`;
 
 // Shared amount grammar (interpolated as a pattern, not a string):
 //   1,234.99 / 1.234,99 / 1234 / 12,345 / 5.99 / 0.99 / ۱٬۲۹۹٬۰۰۰
+// The last group before the decimal point must be exactly 3 digits (that's
+// what tells a thousands group apart from a 2-digit decimal like "5,99");
+// every group before that may be 2 or 3 digits, so Indian lakh/crore
+// grouping ("1,23,456", groups of 2 until the last group of 3) is captured
+// in full instead of being truncated at the first 2-digit group.
 // `(?!digit)` prevents matching only the first 3 digits of "$1000".
 const amount = pattern`
-  (?: ${digit}{1,3} (?: ${groupSep} ${digit}{3} )+ | ${digit}+ )
+  (?: ${digit}{1,3} (?: ${groupSep} ${digit}{2,3} )* ${groupSep} ${digit}{3} | ${digit}+ )
   (?: ${decimalSep} ${digit}{1,2} )?
   (?! ${digit} )
 `;

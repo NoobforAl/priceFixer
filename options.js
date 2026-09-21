@@ -15,6 +15,7 @@ const SYNC_KEYS = [
   'blockedSites',
   'pauseOnPayment',
   'theme',
+  'roundingStep',
 ];
 
 class OptionsController {
@@ -57,6 +58,12 @@ class OptionsController {
     on('themeSystem', () => this.save({ theme: 'system' }));
     on('themeLight', () => this.save({ theme: 'light' }));
     on('themeDark', () => this.save({ theme: 'dark' }));
+
+    document
+      .getElementById('roundingStepInput')
+      .addEventListener('change', e => this.setRoundingStep(e.target.value));
+    on('roundingSiteAddBtn', () => this.addRoundingSiteFromInput());
+    onEnter('roundingSiteStepInput', () => this.addRoundingSiteFromInput());
 
     on('blockAddBtn', () => this.addBlockedFromInput());
     onEnter('blockInput', () => this.addBlockedFromInput());
@@ -288,6 +295,77 @@ class OptionsController {
     }
   }
 
+  // ─── Rounding step ──────────────────────────────────────────────────
+
+  /** Save the global rounding step, or clear it to fall back to charm-only rounding. */
+  async setRoundingStep(rawValue) {
+    const value = parseFloat(rawValue);
+    if (rawValue === '' || isNaN(value) || value <= 0) {
+      delete this.settings.roundingStep;
+      this.render();
+      try {
+        await api.storage.sync.remove(['roundingStep']);
+        this.toast('Saved');
+      } catch {
+        this.toast('Could not save — storage unavailable');
+      }
+      return;
+    }
+    await this.save({ roundingStep: value });
+  }
+
+  addRoundingSiteFromInput() {
+    const domainInput = document.getElementById('roundingSiteInput');
+    const stepInput = document.getElementById('roundingSiteStepInput');
+    const domain = normalizeDomain(domainInput.value);
+    if (!domain) {
+      domainInput.focus();
+      return;
+    }
+    const value = parseFloat(stepInput.value);
+    domainInput.value = '';
+    stepInput.value = '';
+    this.setSiteRoundingStep(domain, isNaN(value) ? '' : String(value));
+  }
+
+  /** Set (or, with an empty/non-positive value, clear) a per-site rounding step override. */
+  setSiteRoundingStep(domain, rawValue) {
+    const value = parseFloat(rawValue);
+    const siteSettings = { ...this.siteSettings() };
+    const entry = { ...(siteSettings[domain] || {}) };
+    if (rawValue === '' || isNaN(value) || value < 0) {
+      delete entry.roundingStep;
+    } else {
+      entry.roundingStep = value;
+    }
+    if (Object.keys(entry).length === 0) {
+      delete siteSettings[domain];
+    } else {
+      siteSettings[domain] = entry;
+    }
+    return this.save({ siteSettings });
+  }
+
+  renderRoundingSites() {
+    const sites = this.siteSettings();
+    const domains = Object.keys(sites)
+      .filter(d => typeof sites[d].roundingStep === 'number')
+      .sort();
+    const container = document.getElementById('roundingSiteList');
+    container.textContent = '';
+    document.getElementById('roundingSiteEmpty').hidden = domains.length > 0;
+    for (const domain of domains) {
+      const step = sites[domain].roundingStep;
+      const value = document.createElement('span');
+      value.className = 'row-sub';
+      value.textContent = step === 0 ? 'default (forced)' : `step ${step}`;
+      const remove = this.linkButton('Remove', `Remove rounding override for ${domain}`, () =>
+        this.setSiteRoundingStep(domain, '')
+      );
+      container.appendChild(this.listItem(domain, [value, remove]));
+    }
+  }
+
   // ─── Rules ──────────────────────────────────────────────────────────
 
   markRulesDirty(dirty) {
@@ -494,6 +572,12 @@ class OptionsController {
     this.setSwitch('paymentSwitch', s.pauseOnPayment !== false);
     this.renderBlockedSites();
     this.renderSites();
+
+    const roundingStepInput = document.getElementById('roundingStepInput');
+    if (document.activeElement !== roundingStepInput) {
+      roundingStepInput.value = typeof s.roundingStep === 'number' ? s.roundingStep : '';
+    }
+    this.renderRoundingSites();
     if (!this.rulesDirty) {
       this.renderRules();
     }

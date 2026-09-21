@@ -77,10 +77,17 @@ npm run dev:test:firefox  # Build Firefox + open test page
     forces layout) runs only for compact elements holding a complete price next
     to other digit nodes, after cheap class/attribute checks, cached per parent.
     Measure with `npm run bench` before touching any of this.
-  - Settings in `storage.sync` (`globalEnabled`, `displayMode`,
+  - Settings in `storage.sync` (`globalEnabled`, `displayMode`, `roundingStep`,
     `siteSettings[domain]`), stats in `storage.local`, and a per-site **session
     pause** in `storage.session` (`pausedSites`): after "Show originals" the
     site stays untouched until Rescan / re-enable.
+  - **Custom rounding step**: `roundingStep` (global) and
+    `siteSettings[domain].roundingStep` (per-site override; `0` forces the
+    default on that site) switch every matched price — not just charm prices —
+    to `PricePatterns.roundToStep()`: always the next multiple of the step, even
+    one already sitting on it (`1,900,000` with a `100,000` step → `2,000,000`),
+    since that's the anchoring trick it exposes. `null`/unset keeps the default
+    charm-only rule.
 - `siteGuard.ts` - Blocklist and payment-page detection.
   `storage.sync.blockedSites` (domains + subdomains, edited from popup →
   Security) and `storage.sync.pauseOnPayment` (default on): payment gateways by
@@ -95,8 +102,9 @@ npm run dev:test:firefox  # Build Firefox + open test page
 - `background.ts` - Service worker. Keyboard shortcut (`Ctrl+Shift+P`), injects
   `content.js` into already-open tabs on install/update.
 - `pricePatterns.ts` - `PricePatterns`: `findPrices()`, `isCharmPrice()`,
-  `roundUpPrice()`, `priceDifference()`, `formatPrice()`. Format-preserving
-  output (European vs American number formats, Persian/Arabic digits).
+  `roundUpPrice()`, `roundToStep()`, `priceDifference()`, `formatPrice()`.
+  Format-preserving output (European vs American number formats, Persian/Arabic
+  digits).
 - `regex-patterns.ts` - Patterns built with the `regex` library. **The library
   is named-capture-only: plain `( )` groups silently become `(?: )`.** Every
   amount is captured as `(?<amount> … )`. All patterns are anchored on a
@@ -117,7 +125,8 @@ npm run dev:test:firefox  # Build Firefox + open test page
   `open_in_tab`), opened from the popup's **Settings** button via
   `runtime.openOptionsPage()`. Reads/writes `storage.sync` directly; content
   scripts follow through `storage.onChanged`. Adds what the popup can't show:
-  every `siteSettings` entry, rules for any domain, reset stats/settings.
+  every `siteSettings` entry, rules for any domain, the **Rounding** section
+  (global step + per-site overrides), reset stats/settings.
 - `ui-common.js` - `api` / `isPromiseApi` detection, `normalizeDomain()` and the
   theme (`storage.sync.theme`: `system` | `light` | `dark`, mirrored in
   `localStorage` so pages open in the right theme; sets `<html data-theme>`),
@@ -149,6 +158,21 @@ Only charm prices are touched; everything else is left exactly as is.
 Output keeps the original separators (`1.299,99`, `1 299`, `۱٬۲۹۹`), digit
 script (Persian/Arabic-Indic) and grouping style (`RMB 9999 → RMB 10000`).
 
+### Custom rounding step
+
+Setting a **rounding step** (Options → Rounding, global or per-site) replaces
+the charm-only rule above: every matched price is rounded up to the next
+multiple of the step, always strictly higher — even one already sitting on a
+multiple, since numbers are deliberately anchored just under a round figure:
+
+- `10.90` with step `1` → `11`
+- `1,900,000` with step `100,000` → `2,000,000` (already a multiple, still
+  bumped — that's the point)
+- `12.00` with step `5` → `15`
+
+A per-site value of `0` forces the default charm-only rule on that site even
+when a global step is set.
+
 ## Testing
 
 `jest.config.js` (ts-jest + jsdom). Tests live in `src/__tests__/`:
@@ -167,10 +191,23 @@ Symbols
 ($ € £ ¥ ￥ ₹ ₽ ₩ ₺ ₪ ₫ … ﷼), ISO codes ("299 EUR", "USD 12.99", "RMB
 5999"), prefix words ("Rs. 499", "US$
 5") and suffix words (تومان, ریال, 元, 円, 원, zł, Kč, kr, lei, Ft, руб, грн,
-TL). Persian/Arabic digits, Arabic separators (٬ ٫), European formats (1.299,99)
-and space thousands (1 299) are supported. Ranges, was/now offers, subscriptions
-and "starting at" phrases need no special patterns: each price in them is
-matched individually and the surrounding text is preserved.
+TL). Persian/Arabic digits, Arabic separators (٬ ٫), European formats
+(1.299,99), space thousands (1 299), the Swiss/French apostrophe thousands
+separator (`CHF 1'234.50`, straight `'` or typographic `’`), and Indian
+lakh/crore grouping (`₹1,23,456`, 2-digit groups before the final 3-digit group)
+are supported. Ranges, was/now offers, subscriptions and "starting at" phrases
+need no special patterns: each price in them is matched individually and the
+surrounding text is preserved. A leading minus sign (ASCII `-` or Unicode `−`
+U+2212) on a refund/negative amount is never part of the match, so it's always
+left exactly as-is.
+
+**Known limitation**: content inside a **shadow DOM** (open or closed) is not
+scanned — `MutationObserver` and `querySelectorAll` don't cross shadow
+boundaries, so prices rendered by web-component-based widgets are invisible to
+`PriceFixerContent`. Documented by a test in `content.test.ts` rather than
+worked around, since a real fix means observing every discovered shadow root
+individually (and closed roots are unreachable from a content script no matter
+what).
 
 ## Extension Messaging
 

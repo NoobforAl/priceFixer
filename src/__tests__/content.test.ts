@@ -190,6 +190,72 @@ describe('replace mode', () => {
   });
 });
 
+describe('custom rounding step', () => {
+  test('rounds every price up to the next multiple of the step, not just charm prices', async () => {
+    const instance = await boot('<span class="p">$12.00</span>');
+    (instance as unknown as { roundingStep: number }).roundingStep = 5;
+    (instance as unknown as { reprocessPage: () => void }).reprocessPage();
+    expect(document.querySelector('.p')!.textContent).toBe('$15');
+  });
+
+  test('bumps a price already sitting on the step (anchored-just-under pricing)', async () => {
+    const instance = await boot('<span class="p">$1,900,000</span>');
+    (instance as unknown as { roundingStep: number }).roundingStep = 100000;
+    (instance as unknown as { reprocessPage: () => void }).reprocessPage();
+    expect(document.querySelector('.p')!.textContent).toBe('$2,000,000');
+  });
+
+  test('falls back to the default charm-only rule once the step is cleared', async () => {
+    const instance = await boot('<span class="p">$12.00</span>');
+    (instance as unknown as { roundingStep: number }).roundingStep = 5;
+    (instance as unknown as { reprocessPage: () => void }).reprocessPage();
+    expect(document.querySelector('.p')!.textContent).toBe('$15');
+
+    (instance as unknown as { roundingStep: number | null }).roundingStep = null;
+    (instance as unknown as { reprocessPage: () => void }).reprocessPage();
+    expect(document.querySelector('.p')!.textContent).toBe('$12.00'); // not charm, left as-is
+  });
+});
+
+describe('memory: recycled DOM does not leak forever', () => {
+  type Internals = { records: unknown[]; priceChanges: unknown[] };
+
+  test('records for nodes the page itself removed are eventually pruned', async () => {
+    const instance = await boot('<main></main>');
+    const main = document.querySelector('main')!;
+
+    // A virtualized list: each round adds one card and keeps only the 3 newest.
+    for (let i = 0; i < 40; i++) {
+      const span = document.createElement('span');
+      span.textContent = `$${10 + (i % 80)}.99`;
+      main.appendChild(span);
+      await tick();
+      while (main.children.length > 3) {
+        main.removeChild(main.firstElementChild!);
+      }
+      await tick();
+    }
+
+    // Without pruning this would be ~40 (one per card ever seen); bounded
+    // pruning keeps it close to the live window plus at most one batch cycle.
+    expect((instance as unknown as Internals).records.length).toBeLessThan(15);
+  });
+
+  test('priceChanges never grows past the tracked cap', async () => {
+    const instance = await boot('<main></main>');
+    const main = document.querySelector('main')!;
+
+    for (let i = 0; i < 600; i++) {
+      const span = document.createElement('span');
+      span.textContent = `$${10 + (i % 80)}.99`;
+      main.appendChild(span);
+    }
+    await tick();
+
+    expect((instance as unknown as Internals).priceChanges.length).toBeLessThanOrEqual(500);
+  });
+});
+
 describe('site guard', () => {
   type Internals = {
     handleMessage: (message: unknown, sendResponse: (r: unknown) => void) => void;
@@ -255,5 +321,49 @@ describe('site guard', () => {
     expect(status.blockedSites).toEqual(['other.com']);
     expect(status.siteBlocked).toBe(false);
     expect(document.querySelectorAll('.pf-highlight')).toHaveLength(1);
+  });
+});
+
+describe('known limitation: shadow DOM', () => {
+  // MutationObserver and querySelectorAll do not cross shadow boundaries, so
+  // content inside a shadow root (common in web-component-based product
+  // widgets) is invisible to the scanner today. This test documents the
+  // current behavior on purpose: if shadow DOM support is ever added, this
+  // assertion should flip to expect a highlight inside the shadow root.
+  test('a price inside an open shadow root is not detected; content outside it still is', async () => {
+    document.body.innerHTML = '<div id="host"></div><p>$5.99</p>';
+    const host = document.getElementById('host')!;
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<span>$9.99</span>';
+
+    const instance = new PriceFixerContent();
+    instances.push(instance);
+    await tick();
+
+    expect(shadow.querySelector('.pf-highlight')).toBeNull();
+    expect(shadow.querySelector('span')!.textContent).toBe('$9.99');
+    expect(document.querySelector('p')!.textContent).toBe('$6');
+  });
+});
+
+describe('additional currency/locale edge cases in the real DOM', () => {
+  test('a negative/refund amount keeps its minus sign untouched', async () => {
+    await boot('<p>Refund: -$5.99</p>');
+    expect(document.querySelector('p')!.textContent).toBe('Refund: -$6');
+  });
+
+  test('a Unicode minus sign (U+2212, not a hyphen) is also left alone', async () => {
+    await boot('<p>−$19.99</p>');
+    expect(document.querySelector('p')!.textContent).toBe('−$20');
+  });
+
+  test('Swiss franc apostrophe grouping is detected and rounded in place', async () => {
+    await boot("<p>Total: CHF 1'234.50</p>");
+    expect(document.querySelector('p')!.textContent).toBe("Total: CHF 1'235");
+  });
+
+  test('Indian lakh grouping is detected, rounded, and reformatted with the same grouping style', async () => {
+    await boot('<p>₹12,34,567.89</p>');
+    expect(document.querySelector('p')!.textContent).toBe('₹12,34,568');
   });
 });

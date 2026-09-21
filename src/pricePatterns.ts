@@ -29,7 +29,7 @@ export class PricePatterns {
   private static parseNumber(numStr: string): number {
     // Arabic thousands (٬) and decimal (٫) separators are unambiguous
     let cleanStr = PersianDigits.convertToEnglish(numStr)
-      .replace(/[٬ \u00a0\u202f]/g, '')
+      .replace(/[٬'’ \u00a0\u202f]/g, '')
       .replace(/٫/g, '.');
 
     if (cleanStr.includes('.') && cleanStr.includes(',')) {
@@ -111,6 +111,29 @@ export class PricePatterns {
   /** Difference between rounded and listed price, rounded to cents (no float noise). */
   public static priceDifference(value: number, rounded: number): number {
     return Math.round((rounded - value) * 100) / 100;
+  }
+
+  /**
+   * Round a price up to the next multiple of a user-chosen step, always
+   * strictly higher than the listed price — even one already sitting on a
+   * multiple, since that's exactly the anchoring trick this exposes
+   * (1,900,000 with a 100,000 step is anchored just under 2,000,000, so it
+   * becomes 2,000,000 too, not left alone):
+   *   10.90 with step 1        → 11
+   *   1,900,000 with step 100,000 → 2,000,000
+   *   12.00 with step 5        → 15
+   * Returns the price unchanged if step or price is not a positive, finite
+   * number (guards against a stray Infinity/NaN reaching here from settings).
+   */
+  public static roundToStep(price: number, step: number): number {
+    if (!(step > 0) || !(price > 0) || !Number.isFinite(step) || !Number.isFinite(price)) {
+      return price;
+    }
+    // Snap the quotient to a handful of decimals first so binary-float noise
+    // (10.9 / 0.1 === 108.99999999999999) can't shift which integer it floors to.
+    const quotient = Math.round((price / step) * 1e6) / 1e6;
+    const next = Math.floor(quotient) + 1;
+    return Math.round(next * step * 1e6) / 1e6;
   }
 
   /**
@@ -263,7 +286,7 @@ export class PricePatterns {
   }
 
   private static readonly NUMERIC_RUN =
-    /[\d۰-۹٠-٩](?:[\d۰-۹٠-٩.,٬٫]|[ \u00a0\u202f](?=[\d۰-۹٠-٩]{3}))*/;
+    /[\d۰-۹٠-٩](?:[\d۰-۹٠-٩.,٬٫'’]|[ \u00a0\u202f](?=[\d۰-۹٠-٩]{3}))*/;
 
   /**
    * Format a number the way the original amount was written: same thousands
@@ -277,8 +300,12 @@ export class PricePatterns {
     let groupSep = '';
     let decimalSep = '.';
     const spaceSep = ascii.match(/[ \u00a0\u202f]/)?.[0];
+    // Swiss/French apostrophe thousands separator (' or ’)
+    const apostropheSep = ascii.match(/['’]/)?.[0];
     if (spaceSep) {
       groupSep = spaceSep;
+    } else if (apostropheSep) {
+      groupSep = apostropheSep;
     } else if (ascii.includes('٬')) {
       groupSep = '٬';
     }
@@ -310,11 +337,35 @@ export class PricePatterns {
     let formatted = intPart;
     // Group thousands unless the page wrote a 4+ digit amount without any
     // separator ("RMB 9999", "1899元"): keep that style.
-    const originalHadGroups = /[.,٬\u0020\u00a0\u202f][\d۰-۹٠-٩]{3}(?![\d۰-۹٠-٩])/.test(ascii);
+    const originalHadGroups = /[.,٬'’\u0020\u00a0\u202f][\d۰-۹٠-٩]{3}(?![\d۰-۹٠-٩])/.test(ascii);
     const originalIntDigits = ascii.split(/[.,٫]/)[0].replace(/\D/g, '').length;
     const ungroupedStyle = !originalHadGroups && originalIntDigits > 3;
     if (intPart.length > 3 && !ungroupedStyle) {
-      formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
+      // Indian numbering (lakh/crore) groups in 2s left of the last 3 digits
+      // ("1,23,456"), not 3s throughout like everywhere else ("1,234,567").
+      // Detected from 2+ separators in the original where every inner group
+      // is exactly 2 digits; two groups alone ("1,299") reads the same under
+      // both schemes, so it is not enough signal on its own.
+      const originalIntPart =
+        decimalSep && ascii.includes(decimalSep)
+          ? ascii.slice(0, ascii.lastIndexOf(decimalSep))
+          : ascii;
+      const originalGroups = groupSep ? originalIntPart.split(groupSep) : [originalIntPart];
+      const isIndianGrouping =
+        originalGroups.length >= 3 &&
+        originalGroups[originalGroups.length - 1].length === 3 &&
+        originalGroups.slice(1, -1).every(g => g.length === 2);
+      if (isIndianGrouping) {
+        let rest = intPart.slice(0, -3);
+        formatted = intPart.slice(-3);
+        while (rest.length > 0) {
+          const chunk = rest.length > 2 ? rest.slice(-2) : rest;
+          formatted = chunk + groupSep + formatted;
+          rest = rest.slice(0, -chunk.length);
+        }
+      } else {
+        formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
+      }
     }
     if (decPart) {
       formatted += decimalSep + decPart;

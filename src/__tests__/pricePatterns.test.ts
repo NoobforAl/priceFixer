@@ -120,6 +120,31 @@ describe('rounding', () => {
   });
 });
 
+describe('custom rounding step', () => {
+  test.each([
+    // [price, step, expected]
+    [10.9, 1, 11],
+    [1900000, 100000, 2000000],
+    [12, 5, 15],
+    [5.99, 1, 6],
+    [10, 1, 11], // even an already-whole price is bumped: opting into a step is a stronger filter
+    [2000000, 100000, 2100000], // already an exact multiple is still bumped up one more step
+    [0.4, 0.1, 0.5],
+    [1.05, 0.25, 1.25],
+  ])('%s with step %s → %s', (price, step, expected) => {
+    expect(PricePatterns.roundToStep(price, step)).toBeCloseTo(expected, 9);
+  });
+
+  test.each([0, -1, NaN])('step %s (not positive) leaves the price unchanged', step => {
+    expect(PricePatterns.roundToStep(19.99, step)).toBe(19.99);
+  });
+
+  test('non-positive price is left unchanged', () => {
+    expect(PricePatterns.roundToStep(0, 1)).toBe(0);
+    expect(PricePatterns.roundToStep(-5, 1)).toBe(-5);
+  });
+});
+
 describe('formatting', () => {
   test.each([
     ['$5.99', '$6'],
@@ -153,5 +178,109 @@ describe('formatting', () => {
     ['$1099', '$1100'],
   ])('%s → %s', (input, expected) => {
     expect(fix(input)).toBe(expected);
+  });
+});
+
+// The rest of this file covers gaps found by researching what similar
+// scraping/rewriting extensions commonly get wrong: locale formats the
+// original grammar silently mis-parsed, and adversarial input safety.
+describe('Swiss/Liechtenstein franc: apostrophe thousands separator', () => {
+  test.each([
+    ["CHF 1'234.50", 1234.5, 'CHF'],
+    ["1'234.50 CHF", 1234.5, 'CHF'],
+    ['1’234 CHF', 1234, 'CHF'], // typographic right single quote, not just straight '
+    ["CHF 12'345'678.90", 12345678.9, 'CHF'],
+  ])('%s → %s %s', (text, value, currency) => {
+    const m = PricePatterns.findPrices(text);
+    expect(m).toHaveLength(1);
+    expect(m[0].value).toBe(value);
+    expect(m[0].currency).toBe(currency);
+  });
+
+  test.each([
+    ["CHF 1'234.50", "CHF 1'235"],
+    ["1'234.50 CHF", "1'235 CHF"],
+    ["1'999 CHF", "2'000 CHF"],
+    ["CHF 12'345'678.90", "CHF 12'345'679"],
+  ])('rounds and keeps the apostrophe grouping: %s → %s', (input, expected) => {
+    expect(fix(input)).toBe(expected);
+  });
+});
+
+describe('Indian numbering (lakh/crore): irregular 2-digit groups', () => {
+  test.each([
+    ['₹1,23,456', 123456, 'INR'],
+    ['₹12,34,567.89', 1234567.89, 'INR'],
+    ['Rs. 1,00,000', 100000, 'INR'],
+    ['Rs. 99,999', 99999, 'INR'],
+  ])(
+    '%s → %s %s (regression: used to truncate at the first 2-digit group)',
+    (text, value, currency) => {
+      const m = PricePatterns.findPrices(text);
+      expect(m).toHaveLength(1);
+      expect(m[0].value).toBe(value);
+      expect(m[0].currency).toBe(currency);
+    }
+  );
+
+  test.each([
+    ['₹12,34,567.89', '₹12,34,568'], // rounded output keeps Indian grouping, not 1,234,568
+    ['₹1,23,456.50', '₹1,23,457'],
+    ['Rs. 99,999', 'Rs. 100,000'], // crossing into 6 digits: no longer irregular, plain grouping
+  ])('rounds and reformats using the original grouping style: %s → %s', (input, expected) => {
+    expect(fix(input)).toBe(expected);
+  });
+});
+
+describe('negative amounts: the sign is never part of the match', () => {
+  test.each([
+    ['-$5.99', '-$6'],
+    ['−$19.99', '−$20'], // Unicode minus (U+2212), not a hyphen
+    ['refund: -5.99 USD', 'refund: -6 USD'],
+  ])('%s → %s (the minus stays untouched; we only ever round up)', (input, expected) => {
+    expect(fix(input)).toBe(expected);
+  });
+});
+
+describe('adversarial input safety', () => {
+  test('a very long run of digits and separators does not hang (no catastrophic backtracking)', () => {
+    const digits = `1${',234'.repeat(5000)}`; // ~20,000 chars, one long "amount"
+    const text = `$${digits}.99 total`;
+    const start = performance.now();
+    const matches = PricePatterns.findPrices(text);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(1000);
+    expect(matches.length).toBeGreaterThanOrEqual(0);
+  });
+
+  test('a long line with no currency marker at all is skipped instantly (mayContainPrice pre-check)', () => {
+    const text = '1,234,567,890,123,456,789 '.repeat(2000);
+    const start = performance.now();
+    expect(PricePatterns.findPrices(text)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(200);
+  });
+
+  test('malformed separators (double decimal points) do not throw and do not explode in length', () => {
+    expect(() => PricePatterns.findPrices('$5..99 and $5,,99 and $..99')).not.toThrow();
+  });
+
+  test('a currency symbol with no digits at all is not a match', () => {
+    expect(PricePatterns.findPrices('$ and $$ and just €')).toEqual([]);
+  });
+});
+
+describe('PricePatterns.roundToStep: invalid inputs are inert', () => {
+  test.each([
+    [Infinity, 1],
+    [NaN, 1],
+    [5, Infinity],
+    [5, NaN],
+  ])('non-finite price=%s or step=%s returns the price unchanged', (price, step) => {
+    expect(PricePatterns.roundToStep(price, step)).toBe(price);
+  });
+
+  test('a very large price with a tiny fractional step still terminates and returns a finite number', () => {
+    const result = PricePatterns.roundToStep(1e15, 0.01);
+    expect(Number.isFinite(result)).toBe(true);
   });
 });

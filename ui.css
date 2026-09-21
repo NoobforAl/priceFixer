@@ -307,6 +307,7 @@ button {
 }
 
 input[type='text'],
+input[type='number'],
 select,
 textarea {
   width: 100%;
@@ -321,6 +322,7 @@ textarea {
 }
 
 input[type='text']::placeholder,
+input[type='number']::placeholder,
 textarea::placeholder {
   color: var(--muted);
   opacity: 0.8;

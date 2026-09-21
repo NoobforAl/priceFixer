@@ -116,6 +116,7 @@
                 <a href="#general">General</a>
                 <a href="#security">Security</a>
                 <a href="#sites">Sites</a>
+                <a href="#rounding">Rounding</a>
                 <a href="#rules">Rules</a>
                 <a href="#statistics">Statistics</a>
                 <a href="#data">Data</a>
@@ -198,6 +199,33 @@
                         </div>
                         <div class="list" id="siteList"></div>
                         <div class="list-empty" id="siteEmpty">No per-site settings yet. Price Fixer is on everywhere.</div>
+                    </div>
+                </section>
+
+                <section class="section" id="rounding">
+                    <h2>Rounding</h2>
+                    <p class="section-intro">By default, only charm prices are rounded up ($5.99 → $6, $19 → $20). Set a step to round every price up to the next multiple of it instead — useful for numbers anchored just under a round figure, like 1,900,000 → 2,000,000 with a step of 100,000.</p>
+                    <div class="card">
+                        <div class="row">
+                            <div style="flex:1;min-width:0">
+                                <div class="row-label">Global step</div>
+                                <div class="row-sub">Leave blank to only round charm prices</div>
+                                <input id="roundingStepInput" type="number" min="0" step="any" placeholder="e.g. 1, 0.1, 100000" style="margin-top:8px;max-width:220px" aria-label="Global rounding step">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div style="flex:1;min-width:0">
+                                <div class="row-label">Per-site overrides</div>
+                                <div class="row-sub">Overrides the global step (or the default) on one domain. Use 0 to force the default on a site.</div>
+                                <div class="add-row">
+                                    <input id="roundingSiteInput" type="text" placeholder="example.com" spellcheck="false" autocomplete="off" aria-label="Domain">
+                                    <input id="roundingSiteStepInput" type="number" min="0" step="any" placeholder="step" style="max-width:110px" aria-label="Step for this domain">
+                                    <button class="btn" id="roundingSiteAddBtn">Set</button>
+                                </div>
+                                <div class="list" id="roundingSiteList"></div>
+                                <div class="list-empty" id="roundingSiteEmpty">No per-site overrides yet.</div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

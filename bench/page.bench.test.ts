@@ -3,42 +3,16 @@
  * Times the initial scan of a large synthetic listing and a mutation burst.
  */
 import { PriceFixerContent } from '../src/priceFixerContent';
+import { CARDS, card, buildPage, tick, fmt } from './syntheticPage';
 
-const CARDS = 3000;
 const ROUNDS = 3;
 
-function card(i: number): string {
-  const n = 10 + (i % 90);
-  return `<div class="card" id="c${i}">
-    <h3>Product ${i}</h3>
-    <p class="desc">Lorem ipsum dolor sit amet, ships in 15 days, save 25% today. Order #${100000 + i}, call 555-0${i % 1000}.</p>
-    <div class="price"><span>$</span><span>${n}</span><span>.</span><span>99</span></div>
-    <span class="old">Was $${n + 50}.99</span>
-    <span class="rating">4.5 (1,234 reviews)</span>
-    <ul><li>Feature one</li><li>Feature two</li><li>${i % 3 === 0 ? '€1.299,99' : 'no price here'}</li></ul>
-  </div>`;
-}
-
-function buildPage(): string {
-  let html = '<main>';
-  for (let i = 0; i < CARDS; i++) {
-    html += card(i);
-  }
-  return html + '</main>';
-}
-
-const tick = (): Promise<void> => new Promise(r => setTimeout(r, 0));
 type Sliced = { scanQueue: Node[] | null; reprocessPage: () => void };
 /** The scan is time-sliced: wait until the queue is drained. */
 async function settle(instance: PriceFixerContent): Promise<void> {
   do {
     await tick();
   } while ((instance as unknown as Sliced).scanQueue !== null);
-}
-
-function median(xs: number[]): number {
-  const s = [...xs].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
 }
 
 test('benchmark', async () => {
@@ -76,8 +50,6 @@ test('benchmark', async () => {
     document.body.innerHTML = '';
   }
 
-  const fmt = (xs: number[]): string =>
-    `${median(xs).toFixed(0)} ms (min ${Math.min(...xs).toFixed(0)})`;
   console.log(
     `cards=${CARDS} highlights=${highlights}\n` +
       `  initial scan : ${fmt(initial)}\n` +

@@ -48,6 +48,8 @@ interface PriceChange {
 interface SiteSettings {
   enabled: boolean;
   mode?: DisplayMode;
+  /** Overrides the global rounding step for this site; 0 forces the default (charm-only). */
+  roundingStep?: number;
 }
 
 interface GlobalStats {
@@ -95,11 +97,24 @@ const COMPACT_TEXT_LIMIT = 40;
 
 /** Budget per scan slice; the rest of the page is scanned in idle time. */
 const SCAN_SLICE_MS = 12;
+/**
+ * On a site that keeps recycling its DOM (virtualized/infinite-scroll
+ * listings), the site removes old nodes itself; without pruning, `records`
+ * would keep every historical change reachable forever and leak memory
+ * proportional to everything ever seen, not to what's on the page. Stale
+ * records (nothing they touched is still connected) are swept out every this
+ * many mutation batches — a batch count rather than a wall-clock interval, so
+ * staleness is bounded the same way whether mutations arrive once a minute
+ * or a hundred times a second.
+ */
+const PRUNE_EVERY_N_BATCHES = 10;
+/** Recent changes kept for the popup's list; older ones add nothing but memory. */
+const MAX_TRACKED_CHANGES = 500;
 const DIGIT = /[\d۰-۹٠-٩]/;
 /** A node that is only a piece of a number: "$", "5", ".", "99" */
-const FRAGMENT = /^\s*(?:[\d۰-۹٠-٩.,٬٫]+|[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼])\s*$/;
+const FRAGMENT = /^\s*(?:[\d۰-۹٠-٩.,٬٫'’]+|[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼])\s*$/;
 /** ".99 today" continues a number started in the previous node */
-const CONTINUES_NUMBER = /^[.,٫٬][\d۰-۹٠-٩]/;
+const CONTINUES_NUMBER = /^[.,٫٬'’][\d۰-۹٠-٩]/;
 const TWO_DIGITS = /^\s*[\d۰-۹٠-٩]{2}\s*$/;
 const ENDS_WITH_DIGIT = /[\d۰-۹٠-٩]$/;
 // Screen-reader-only conventions, checked before the (expensive) computed style
@@ -145,9 +160,16 @@ export class PriceFixerContent {
   private paymentReason: string | null = null;
   private lastHref = '';
   private lastPaymentCheck = 0;
+  private mutationBatchesSincePrune = 0;
   private destroyed = false;
   private isProcessing = false;
   private displayMode: DisplayMode = 'highlight';
+  /**
+   * When set, every detected price is rounded up to the next multiple of
+   * this step (see PricePatterns.roundToStep), replacing the default
+   * charm-price-only rule. null means "use the default".
+   */
+  private roundingStep: number | null = null;
   private priceChanges: PriceChange[] = [];
   private pricesRounded = 0;
   private currentDomain = '';
@@ -240,6 +262,7 @@ export class PriceFixerContent {
         'customRules',
         'blockedSites',
         'pauseOnPayment',
+        'roundingStep',
       ]);
       this.applySettings(result);
       this.applyRules(result.customRules);
@@ -260,9 +283,27 @@ export class PriceFixerContent {
     if (site?.mode) {
       this.displayMode = site.mode;
     }
+    this.roundingStep = this.parseStep(result.roundingStep);
+    if (typeof site?.roundingStep === 'number') {
+      this.roundingStep = this.parseStep(site.roundingStep);
+    }
     this.blockedSites = normalizeBlockedSites(result.blockedSites);
     this.siteBlocked = isBlockedSite(window.location.hostname, this.blockedSites);
     this.pauseOnPayment = result.pauseOnPayment !== false;
+  }
+
+  private parseStep(value: unknown): number | null {
+    return typeof value === 'number' && value > 0 ? value : null;
+  }
+
+  /**
+   * The rounding rule in effect: the custom step when one is configured
+   * (global or per-site), otherwise the default charm-price-only rule.
+   */
+  private roundPrice(value: number): number {
+    return this.roundingStep !== null
+      ? PricePatterns.roundToStep(value, this.roundingStep)
+      : PricePatterns.roundUpPrice(value);
   }
 
   public applyRules(raw: unknown): void {
@@ -293,6 +334,7 @@ export class PriceFixerContent {
         siteSettings: { [this.currentDomain]: { enabled: this.siteEnabled } },
         blockedSites: this.blockedSites,
         pauseOnPayment: this.pauseOnPayment,
+        roundingStep: this.roundingStep,
       };
       for (const key of Object.keys(changes)) {
         merged[key] = changes[key].newValue;
@@ -640,6 +682,7 @@ export class PriceFixerContent {
     if (recordStats && this.priceChanges.length > before) {
       this.saveStats(this.priceChanges.slice(before));
     }
+    this.trimPriceChanges();
     if (queue.length > 0) {
       requestIdle(() => this.runScanSlice(generation, recordStats));
     } else {
@@ -973,7 +1016,7 @@ export class PriceFixerContent {
 
   /** Replace a price spread over several text nodes as one unit. */
   private processSplitPrice(nodes: CoveredNode[], match: PriceMatch): void {
-    const roundedValue = PricePatterns.roundUpPrice(match.value);
+    const roundedValue = this.roundPrice(match.value);
     if (roundedValue === match.value) {
       return;
     }
@@ -1102,7 +1145,7 @@ export class PriceFixerContent {
     let modifiedText = originalText;
 
     for (const match of [...priceMatches].reverse()) {
-      const roundedValue = PricePatterns.roundUpPrice(match.value);
+      const roundedValue = this.roundPrice(match.value);
       if (roundedValue === match.value) {
         continue;
       }
@@ -1138,7 +1181,7 @@ export class PriceFixerContent {
     let lastIndex = 0;
 
     for (const match of priceMatches) {
-      const roundedValue = PricePatterns.roundUpPrice(match.value);
+      const roundedValue = this.roundPrice(match.value);
       if (roundedValue === match.value) {
         continue;
       }
@@ -1199,6 +1242,30 @@ export class PriceFixerContent {
     });
   }
 
+  /** Keep only the most recent changes; older ones are of no use to the popup. */
+  private trimPriceChanges(): void {
+    const excess = this.priceChanges.length - MAX_TRACKED_CHANGES;
+    if (excess > 0) {
+      this.priceChanges.splice(0, excess);
+    }
+  }
+
+  /**
+   * Drop records whose swapped-in content is no longer connected to the
+   * document — the site removed that subtree itself, so there's nothing left
+   * to restore and no reason to keep it (and everything it references)
+   * reachable. Called every PRUNE_EVERY_N_BATCHES mutation batches; this
+   * walks every record, so it isn't free.
+   */
+  private pruneStaleRecords(): void {
+    if (this.records.length === 0) {
+      return;
+    }
+    this.records = this.records.filter(record =>
+      record.textNode ? record.textNode.isConnected : record.inserted.some(n => n.isConnected)
+    );
+  }
+
   // ─── Dynamic content ────────────────────────────────────────────────
 
   private setupMutationObserver(): void {
@@ -1244,6 +1311,11 @@ export class PriceFixerContent {
         if (this.priceChanges.length > before) {
           this.saveStats(this.priceChanges.slice(before));
         }
+        this.trimPriceChanges();
+        if (++this.mutationBatchesSincePrune >= PRUNE_EVERY_N_BATCHES) {
+          this.mutationBatchesSincePrune = 0;
+          this.pruneStaleRecords();
+        }
       } finally {
         this.observer?.takeRecords();
         this.isProcessing = false;
@@ -1287,6 +1359,7 @@ export class PriceFixerContent {
       paymentReason: this.paymentReason,
       processedCount: this.pricesRounded,
       displayMode: this.displayMode,
+      roundingStep: this.roundingStep,
       changes: this.priceChanges,
       isShoppingSite: this.isShoppingSite,
       shoppingSiteName: this.shoppingSiteName,
