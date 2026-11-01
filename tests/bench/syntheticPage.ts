@@ -4,6 +4,7 @@ export const CARDS = 3000;
 
 export function card(i: number): string {
   const n = 10 + (i % 90);
+
   return `<div class="card" id="c${i}">
     <h3>Product ${i}</h3>
     <p class="desc">Lorem ipsum dolor sit amet, ships in 15 days, save 25% today. Order #${100000 + i}, call 555-0${i % 1000}.</p>
@@ -16,16 +17,19 @@ export function card(i: number): string {
 
 export function buildPage(cards = CARDS): string {
   let html = '<main>';
+
   for (let i = 0; i < cards; i++) {
     html += card(i);
   }
-  return html + '</main>';
+
+  return `${html}</main>`;
 }
 
 export const tick = (): Promise<void> => new Promise(r => setTimeout(r, 0));
 
 export function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
+
   return s[Math.floor(s.length / 2)];
 }
 

@@ -17,18 +17,22 @@ const targets = [
 for (const [dir, zip] of targets) {
   const src = path.join(root, dir);
   const out = path.join(root, zip);
+
   if (!fs.existsSync(path.join(src, 'manifest.json'))) {
     console.error(`${dir}/manifest.json not found — run "npm run build:all" first`);
     process.exit(1);
   }
+
   fs.rmSync(out, { force: true });
   if (process.platform === 'win32') {
     // bsdtar ships with Windows 10+ and writes zip files (use the system one,
     // not Git's GNU tar, which misreads "B:\..." as a remote host)
     const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+
     execFileSync(tar, ['-a', '-c', '-f', out, '.'], { cwd: src, stdio: 'inherit' });
   } else {
     execFileSync('zip', ['-qr', out, '.'], { cwd: src, stdio: 'inherit' });
   }
+
   console.log(`${zip}  ${(fs.statSync(out).size / 1024).toFixed(0)} KB`);
 }

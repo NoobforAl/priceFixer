@@ -4,7 +4,11 @@ const path = require('path');
 const { exec } = require('child_process');
 
 const PORT = 3456;
-const TEST_PAGE = path.join(__dirname, '..', 'test-page.html');
+const HOST = '127.0.0.1';
+// Only the manual test pages are served: the repo root holds .env (store
+// credentials), so it must never be reachable, least of all from the LAN.
+const ROOT = path.join(__dirname, '..', 'tests', 'manual');
+const TEST_PAGE = path.join(ROOT, 'test-page.html');
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -16,7 +20,26 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  const filePath = req.url === '/' ? TEST_PAGE : path.join(__dirname, '..', req.url);
+  let urlPath;
+
+  try {
+    urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  } catch {
+    res.writeHead(400);
+    res.end('Bad request');
+
+    return;
+  }
+
+  const filePath = urlPath === '/' ? TEST_PAGE : path.join(ROOT, urlPath);
+
+  if (path.relative(ROOT, filePath).startsWith('..')) {
+    res.writeHead(403);
+    res.end('Forbidden');
+
+    return;
+  }
+
   const ext = path.extname(filePath);
   const contentType = MIME_TYPES[ext] || 'text/plain';
 
@@ -24,8 +47,10 @@ const server = http.createServer((req, res) => {
     if (err) {
       res.writeHead(404);
       res.end('Not found');
+
       return;
     }
+
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);
   });
@@ -39,11 +64,13 @@ function openBrowser(url) {
       : platform === 'darwin'
         ? `open "${url}"`
         : `xdg-open "${url}"`;
+
   exec(cmd);
 }
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   const url = `http://localhost:${PORT}`;
+
   console.log(`\n  Price Fixer - Dev Test Server`);
   console.log(`  ────────────────────────────`);
   console.log(`  Test page: ${url}`);

@@ -155,9 +155,11 @@ export const PersianDigits = {
   convertToEnglish(str: string): string {
     return str.replace(this.converter, digit => {
       const p = this.persian.indexOf(digit);
+
       if (p >= 0) {
         return this.english[p];
       }
+
       return this.english[this.arabic.indexOf(digit)];
     });
   },
@@ -165,9 +167,11 @@ export const PersianDigits = {
   /** Convert ASCII digits to the script used in `like` (Persian, Arabic-Indic or ASCII). */
   matchScript(str: string, like: string): string {
     const table = /[۰-۹]/.test(like) ? this.persian : /[٠-٩]/.test(like) ? this.arabic : null;
+
     if (!table) {
       return str;
     }
+
     return str.replace(/\d/g, d => table[Number(d)]);
   },
 };

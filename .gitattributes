@@ -1,0 +1,4 @@
+# Prettier writes LF; keep it LF on every OS (stops the CRLF warnings on Windows).
+* text=auto eol=lf
+*.png binary
+*.zip binary

@@ -1,5 +1,5 @@
-import { compileRules, normalizeRules } from '../customRules';
-import { PriceFixerContent } from '../priceFixerContent';
+import { compileRules, normalizeRules } from '../../src/content/customRules';
+import { PriceFixerContent } from '../../src/content/priceFixerContent';
 
 describe('custom rules', () => {
   test('normalizes sloppy input and reports compile errors', () => {
@@ -9,6 +9,7 @@ describe('custom rules', () => {
       extraPatterns: [String.raw`(?<amount>\d+)\s*coins`, 'no group here'],
     });
     const compiled = compileRules(rules, 'shop.com');
+
     expect(compiled.excludeSelector).toBe('.unit, #total');
     expect(compiled.excludePatterns).toHaveLength(1);
     expect(compiled.extraPatterns).toHaveLength(1);
@@ -20,6 +21,7 @@ describe('custom rules', () => {
     document.body.innerHTML =
       '<p class="a">$5.99</p><p class="unit">$5.99 per unit</p><p class="b">$5.99 per month</p><p class="c">199 coins</p>';
     const instance = new PriceFixerContent();
+
     instance.applyRules({
       excludeSelectors: { '*': ['.unit'] },
       excludePatterns: [String.raw`per\s+month`],

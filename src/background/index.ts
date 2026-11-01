@@ -34,6 +34,7 @@ class PriceFixerBackground {
         if (details.reason === 'install') {
           this.showWelcomeNotification();
         }
+
         this.injectIntoOpenTabs();
       });
 
@@ -52,6 +53,7 @@ class PriceFixerBackground {
       // Handle messages from content script
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         this.handleMessage(message, sender, sendResponse);
+
         return true;
       });
 
@@ -71,6 +73,7 @@ class PriceFixerBackground {
         if (details.reason === 'install') {
           this.showWelcomeNotification();
         }
+
         this.injectIntoOpenTabs();
       });
 
@@ -123,15 +126,19 @@ class PriceFixerBackground {
         : typeof browser !== 'undefined' && browser.scripting
           ? browser
           : null;
+
     if (!api) {
       return;
     }
+
     try {
       const tabs = await api.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+
       for (const tab of tabs) {
         if (!tab.id || tab.discarded) {
           continue;
         }
+
         api.scripting
           .executeScript({ target: { tabId: tab.id }, files: ['content.js'] })
           .catch(() => {
@@ -161,6 +168,7 @@ class PriceFixerBackground {
 
     if (!tabId) {
       sendResponse({ error: 'No tab ID' });
+
       return;
     }
 
@@ -189,6 +197,7 @@ class PriceFixerBackground {
         : typeof browser !== 'undefined'
           ? browser
           : null;
+
     if (!api?.tabs) {
       return;
     }

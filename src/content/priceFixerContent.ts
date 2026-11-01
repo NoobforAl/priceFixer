@@ -4,16 +4,11 @@
  * Bootstrapped by content.ts.
  */
 
-import { PricePatterns, PriceMatch } from './pricePatterns';
-import { isKnownShoppingSite, isShopifyStore, getShoppingSiteName } from './shopping-sites';
-import { getSitePattern, getPriceElements, SitePattern } from './site-patterns';
+import { PricePatterns, PriceMatch } from '../pricing/pricePatterns';
+import { findShop, getPriceElements, Shop } from '../sites/shops';
+import { normalizeDomain } from '../sites/domains';
+import { detectPaymentPage, isBlockedSite, normalizeBlockedSites } from '../sites/siteGuard';
 import { CompiledRules, compileRules, normalizeRules } from './customRules';
-import {
-  detectPaymentPage,
-  isBlockedSite,
-  normalizeBlockedSites,
-  normalizeDomain,
-} from './siteGuard';
 
 type DisplayMode = 'replace' | 'highlight';
 
@@ -138,9 +133,11 @@ function getApi(): typeof chrome | null {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     return chrome;
   }
+
   if (typeof browser !== 'undefined' && browser.storage) {
     return browser;
   }
+
   return null;
 }
 
@@ -175,9 +172,8 @@ export class PriceFixerContent {
   private currentDomain = '';
   private stylesInjected = false;
   private tooltipBound = false;
-  private isShoppingSite = false;
-  private shoppingSiteName: string | null = null;
-  private sitePattern: SitePattern | null = null;
+  /** Known shop for this page (shops.json), or null */
+  private shop: Shop | null = null;
   private touchedNodes = new WeakSet<Node>();
   /** Pending work of a time-sliced scan; null when idle. */
   private scanQueue: Node[] | null = null;
@@ -223,13 +219,8 @@ export class PriceFixerContent {
 
   private detectShoppingSite(): void {
     const hostname = window.location.hostname;
-    this.isShoppingSite = isKnownShoppingSite(hostname) || isShopifyStore();
-    this.shoppingSiteName = getShoppingSiteName(hostname);
-    this.sitePattern = getSitePattern(hostname);
-    if (!this.shoppingSiteName && isShopifyStore()) {
-      this.shoppingSiteName = 'Shopify Store';
-      this.isShoppingSite = true;
-    }
+
+    this.shop = findShop(hostname);
   }
 
   /**
@@ -242,8 +233,10 @@ export class PriceFixerContent {
     this.lastPaymentCheck = Date.now();
     const signal = detectPaymentPage();
     const changed = signal.payment !== this.paymentPage;
+
     this.paymentPage = signal.payment;
     this.paymentReason = signal.reason;
+
     return changed;
   }
 
@@ -252,9 +245,11 @@ export class PriceFixerContent {
   private async loadSettings(): Promise<void> {
     try {
       const api = getApi();
+
       if (!api) {
         return;
       }
+
       const result = await api.storage.sync.get([
         'globalEnabled',
         'displayMode',
@@ -264,6 +259,7 @@ export class PriceFixerContent {
         'pauseOnPayment',
         'roundingStep',
       ]);
+
       this.applySettings(result);
       this.applyRules(result.customRules);
       this.sitePaused = await this.loadSitePaused();
@@ -277,16 +273,20 @@ export class PriceFixerContent {
     if (result.displayMode === 'replace' || result.displayMode === 'highlight') {
       this.displayMode = result.displayMode;
     }
+
     const siteSettings = result.siteSettings as Record<string, SiteSettings> | undefined;
     const site = siteSettings?.[this.currentDomain];
+
     this.siteEnabled = site ? site.enabled !== false : true;
     if (site?.mode) {
       this.displayMode = site.mode;
     }
+
     this.roundingStep = this.parseStep(result.roundingStep);
     if (typeof site?.roundingStep === 'number') {
       this.roundingStep = this.parseStep(site.roundingStep);
     }
+
     this.blockedSites = normalizeBlockedSites(result.blockedSites);
     this.siteBlocked = isBlockedSite(window.location.hostname, this.blockedSites);
     this.pauseOnPayment = result.pauseOnPayment !== false;
@@ -313,19 +313,23 @@ export class PriceFixerContent {
 
   private setupStorageListener(): void {
     const api = getApi();
+
     if (!api?.storage?.onChanged) {
       return;
     }
+
     api.storage.onChanged.addListener((changes, area) => {
       if (area !== 'sync') {
         return;
       }
+
       if (changes.customRules) {
         this.applyRules(changes.customRules.newValue);
         if (this.isEnabled) {
           this.reprocessPage();
         }
       }
+
       const wasEnabled = this.isEnabled;
       const oldMode = this.displayMode;
       const merged: Record<string, unknown> = {
@@ -336,9 +340,11 @@ export class PriceFixerContent {
         pauseOnPayment: this.pauseOnPayment,
         roundingStep: this.roundingStep,
       };
+
       for (const key of Object.keys(changes)) {
         merged[key] = changes[key].newValue;
       }
+
       this.applySettings(merged);
 
       if (this.isEnabled !== wasEnabled || this.displayMode !== oldMode) {
@@ -359,11 +365,14 @@ export class PriceFixerContent {
   private async loadSitePaused(): Promise<boolean> {
     try {
       const session = getApi()?.storage?.session;
+
       if (!session) {
         return false;
       }
+
       const result = await session.get(['pausedSites']);
       const paused = (result.pausedSites || {}) as Record<string, boolean>;
+
       return paused[this.currentDomain] === true;
     } catch {
       return false;
@@ -373,16 +382,20 @@ export class PriceFixerContent {
   private async saveSitePaused(paused: boolean): Promise<void> {
     try {
       const session = getApi()?.storage?.session;
+
       if (!session) {
         return;
       }
+
       const result = await session.get(['pausedSites']);
       const pausedSites = (result.pausedSites || {}) as Record<string, boolean>;
+
       if (paused) {
         pausedSites[this.currentDomain] = true;
       } else {
         delete pausedSites[this.currentDomain];
       }
+
       await session.set({ pausedSites });
     } catch {
       // Session storage not available
@@ -405,11 +418,14 @@ export class PriceFixerContent {
   private async saveSiteSetting(enabled: boolean): Promise<void> {
     try {
       const api = getApi();
+
       if (!api) {
         return;
       }
+
       const result = await api.storage.sync.get(['siteSettings']);
       const siteSettings = (result.siteSettings || {}) as Record<string, SiteSettings>;
+
       siteSettings[this.currentDomain] = { enabled };
       await api.storage.sync.set({ siteSettings });
     } catch {
@@ -420,13 +436,17 @@ export class PriceFixerContent {
   /** Add or remove a domain (default: this site) from the blocklist. */
   private setBlocked(blocked: boolean, domain = this.currentDomain): void {
     const target = normalizeDomain(domain);
+
     if (!target) {
       return;
     }
+
     const list = this.blockedSites.filter(d => d !== target);
+
     if (blocked) {
       list.push(target);
     }
+
     this.blockedSites = list;
     this.siteBlocked = isBlockedSite(window.location.hostname, list);
     this.saveSetting({ blockedSites: list });
@@ -436,11 +456,14 @@ export class PriceFixerContent {
     if (changes.length === 0) {
       return;
     }
+
     try {
       const api = getApi();
+
       if (!api) {
         return;
       }
+
       const result = await api.storage.local.get(['stats']);
       const stats: GlobalStats = {
         ...this.emptyStats(),
@@ -448,12 +471,15 @@ export class PriceFixerContent {
       };
 
       let hidden = 0;
+
       for (const change of changes) {
         const diff = parseFloat(change.difference);
+
         if (!isNaN(diff)) {
           hidden += diff;
         }
       }
+
       hidden = Math.round(hidden * 100) / 100;
 
       stats.totalPricesFound += changes.length;
@@ -461,6 +487,7 @@ export class PriceFixerContent {
       stats.totalHiddenAmount = Math.round((stats.totalHiddenAmount + hidden) * 100) / 100;
 
       const site = stats.siteStats[this.currentDomain] || { count: 0, hiddenAmount: 0 };
+
       site.count += changes.length;
       site.hiddenAmount = Math.round((site.hiddenAmount + hidden) * 100) / 100;
       stats.siteStats[this.currentDomain] = site;
@@ -474,10 +501,13 @@ export class PriceFixerContent {
   private async getStats(): Promise<GlobalStats> {
     try {
       const api = getApi();
+
       if (!api) {
         return this.emptyStats();
       }
+
       const result = await api.storage.local.get(['stats']);
+
       return { ...this.emptyStats(), ...(result.stats as Partial<GlobalStats>) };
     } catch {
       return this.emptyStats();
@@ -494,6 +524,7 @@ export class PriceFixerContent {
     if (this.stylesInjected) {
       return;
     }
+
     this.stylesInjected = true;
 
     // Every declaration is !important so the host page's CSS for
@@ -534,13 +565,17 @@ export class PriceFixerContent {
 
     try {
       const sheet = new CSSStyleSheet();
+
       sheet.replaceSync(css);
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+
       return;
     } catch {
       // Constructable stylesheets unsupported — fall back to a <style> element
     }
+
     const style = document.createElement('style');
+
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
   }
@@ -549,17 +584,20 @@ export class PriceFixerContent {
     if (this.tooltipBound) {
       return;
     }
+
     this.tooltipBound = true;
 
     document.addEventListener('mouseover', event => {
       const target = event.target as Element | null;
       const wrapper = target?.closest?.(`.${HIGHLIGHT_CLASS}`) as HTMLElement | null;
+
       if (wrapper) {
         this.showTooltip(wrapper);
       }
     });
     document.addEventListener('mouseout', event => {
       const target = event.target as Element | null;
+
       if (target?.closest?.(`.${HIGHLIGHT_CLASS}`)) {
         this.hideTooltip();
       }
@@ -569,6 +607,7 @@ export class PriceFixerContent {
 
   private getTooltip(): HTMLElement {
     let tip = document.getElementById(TOOLTIP_ID);
+
     if (!tip || !tip.isConnected) {
       tip = document.createElement('div');
       tip.id = TOOLTIP_ID;
@@ -576,6 +615,7 @@ export class PriceFixerContent {
       tip.setAttribute('data-pf-skip', '');
       (document.body || document.documentElement).appendChild(tip);
     }
+
     return tip;
   }
 
@@ -585,27 +625,35 @@ export class PriceFixerContent {
     const diff = wrapper.getAttribute('data-pf-diff') || '';
 
     const tip = this.getTooltip();
+
     tip.textContent = '';
     const line1 = document.createElement('div');
+
     line1.append('Listed as ');
     const b = document.createElement('b');
+
     b.textContent = original;
     line1.append(b);
     const line2 = document.createElement('div');
+
     line2.style.setProperty('opacity', '0.75', 'important');
     line2.textContent = `Only ${diff} less than ${rounded} — charm pricing.`;
     tip.append(line1, line2);
 
     const rect = wrapper.getBoundingClientRect();
+
     tip.style.setProperty('visibility', 'hidden', 'important');
     tip.style.setProperty('display', 'block', 'important');
     const tipRect = tip.getBoundingClientRect();
 
     let top = rect.top - tipRect.height - 8;
+
     if (top < 4) {
       top = rect.bottom + 8;
     }
+
     let left = rect.left + rect.width / 2 - tipRect.width / 2;
+
     left = Math.max(4, Math.min(left, window.innerWidth - tipRect.width - 4));
 
     tip.style.setProperty('top', `${top}px`, 'important');
@@ -615,6 +663,7 @@ export class PriceFixerContent {
 
   private hideTooltip(): void {
     const tip = document.getElementById(TOOLTIP_ID);
+
     if (tip) {
       tip.style.setProperty('display', 'none', 'important');
     }
@@ -640,15 +689,19 @@ export class PriceFixerContent {
     // targeted price elements go first; the full-page scan then catches
     // prices outside the known selectors.
     const queue: Node[] = [];
+
     if (document.body) {
       queue.push(document.body);
     }
-    if (this.sitePattern) {
-      const targets = getPriceElements(this.sitePattern);
+
+    if (this.shop) {
+      const targets = getPriceElements(this.shop);
+
       for (let i = targets.length - 1; i >= 0; i--) {
         queue.push(targets[i]);
       }
     }
+
     this.scanQueue = queue;
     this.runScanSlice(this.scanGeneration, recordStats);
   }
@@ -660,13 +713,16 @@ export class PriceFixerContent {
    */
   private runScanSlice(generation: number, recordStats: boolean): void {
     const queue = this.scanQueue;
+
     if (!queue || generation !== this.scanGeneration || this.isProcessing) {
       return;
     }
+
     this.isProcessing = true;
     const before = this.priceChanges.length;
     const deadline = performance.now() + SCAN_SLICE_MS;
     let n = 0;
+
     try {
       while (queue.length > 0) {
         this.scanNode(queue.pop() as Node, queue, false);
@@ -679,9 +735,11 @@ export class PriceFixerContent {
       this.observer?.takeRecords();
       this.isProcessing = false;
     }
+
     if (recordStats && this.priceChanges.length > before) {
       this.saveStats(this.priceChanges.slice(before));
     }
+
     this.trimPriceChanges();
     if (queue.length > 0) {
       requestIdle(() => this.runScanSlice(generation, recordStats));
@@ -697,11 +755,13 @@ export class PriceFixerContent {
 
   private isOurs(node: Node): boolean {
     const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+
     return !!el?.closest?.(`.${HIGHLIGHT_CLASS}, [${UNIT_ATTR}], [data-pf-skip]`);
   }
 
   private static isEditable(el: Element): boolean {
     const value = el.getAttribute('contenteditable');
+
     return value !== null && value !== 'false';
   }
 
@@ -714,30 +774,38 @@ export class PriceFixerContent {
     if (SKIP_TAGS.has(el.localName)) {
       return true;
     }
+
     if (this.rules.excludeSelector && el.matches(this.rules.excludeSelector)) {
       return true;
     }
+
     if (el.classList.contains(HIGHLIGHT_CLASS) || el.hasAttribute(UNIT_ATTR)) {
       return true;
     }
+
     if (el.hasAttribute('data-pf-skip')) {
       return true;
     }
+
     if (PriceFixerContent.isEditable(el)) {
       return true;
     }
+
     if (root) {
       const editable = el.closest('[contenteditable]');
+
       if (editable && editable.getAttribute('contenteditable') !== 'false') {
         return true;
       }
     }
+
     return false;
   }
 
   /** Walk a subtree synchronously, processing text nodes and split prices. */
   private scan(node: Node): void {
     const queue: Node[] = [];
+
     this.scanNode(node, queue, true);
     while (queue.length > 0) {
       this.scanNode(queue.pop() as Node, queue, false);
@@ -751,21 +819,28 @@ export class PriceFixerContent {
   private scanNode(node: Node, queue: Node[], root: boolean): void {
     if (node.nodeType === Node.TEXT_NODE) {
       this.processTextNode(node as Text, root);
+
       return;
     }
+
     if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
       return;
     }
+
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as Element;
+
       if (!el.isConnected || this.shouldSkipElement(el, root)) {
         return;
       }
+
       if (this.isCompactCandidate(el)) {
         this.processCompactElement(el);
+
         return;
       }
     }
+
     for (let child = node.lastChild; child; child = child.previousSibling) {
       queue.push(child);
     }
@@ -775,10 +850,13 @@ export class PriceFixerContent {
     if (el.childElementCount === 0) {
       return false;
     }
+
     const text = this.boundedText(el, COMPACT_TEXT_LIMIT);
+
     if (text === null) {
       return false;
     }
+
     return PricePatterns.mayContainPrice(text) || this.isIconPrice(el, text);
   }
 
@@ -793,6 +871,7 @@ export class PriceFixerContent {
 
   private isRtlPage(): boolean {
     const lang = (document.documentElement.lang || '').toLowerCase();
+
     return lang.startsWith('fa') || lang.startsWith('ar') || document.documentElement.dir === 'rtl';
   }
 
@@ -802,18 +881,23 @@ export class PriceFixerContent {
     const walk = (node: Node): boolean => {
       if (node.nodeType === Node.TEXT_NODE) {
         text += node.textContent || '';
+
         return text.length <= limit;
       }
+
       if (node.nodeType === Node.ELEMENT_NODE && this.shouldSkipElement(node as Element)) {
         return true;
       }
+
       for (let child = node.firstChild; child; child = child.nextSibling) {
         if (!walk(child)) {
           return false;
         }
       }
+
       return true;
     };
+
     return walk(el) ? text : null;
   }
 
@@ -828,7 +912,9 @@ export class PriceFixerContent {
         }
       }
     };
+
     walk(el);
+
     return nodes;
   }
 
@@ -843,17 +929,23 @@ export class PriceFixerContent {
    */
   private isVisuallyHidden(node: Text, root: Element, cache: Map<Element, boolean>): boolean {
     const el = node.parentElement;
+
     if (!el) {
       return false;
     }
+
     const cached = cache.get(el);
+
     if (cached !== undefined) {
       return cached;
     }
+
     // Cheap markup conventions first; walk up to the compact root only.
     let hidden = false;
+
     for (let a: Element | null = el; a && a !== root; a = a.parentElement) {
       const className = typeof a.className === 'string' ? a.className : '';
+
       if (
         a.hasAttribute('hidden') ||
         SR_ONLY_CLASS.test(className) ||
@@ -863,34 +955,44 @@ export class PriceFixerContent {
         break;
       }
     }
+
     if (!hidden) {
       hidden = this.isHiddenByStyle(el);
     }
+
     cache.set(el, hidden);
+
     return hidden;
   }
 
   /** Forces style and layout: only called when a merge could go wrong. */
   private isHiddenByStyle(el: Element): boolean {
     const style = window.getComputedStyle(el);
+
     if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
       return true;
     }
+
     if (style.position === 'absolute' && style.clip && style.clip !== 'auto') {
       return true;
     }
+
     if (style.clipPath && style.clipPath !== 'none') {
       return true;
     }
+
     const rect = el.getBoundingClientRect();
+
     if (rect.width > 0 && rect.width <= 1 && rect.height <= 1) {
       return true;
     }
+
     return rect.right < 0 || rect.bottom < 0;
   }
 
   private processCompactElement(el: Element): void {
     const all = this.collectTextNodes(el);
+
     if (all.length === 0) {
       return;
     }
@@ -904,6 +1006,7 @@ export class PriceFixerContent {
     let nodes = all;
     let digitNodes = 0;
     let completePrices = 0;
+
     for (const n of all) {
       if (DIGIT.test(n.data)) {
         digitNodes++;
@@ -912,17 +1015,21 @@ export class PriceFixerContent {
         }
       }
     }
+
     if (completePrices > 0 && digitNodes > 1) {
       const cache = new Map<Element, boolean>();
+
       hidden = all.filter(n => this.isVisuallyHidden(n, el, cache));
       if (hidden.length > 0) {
         const hiddenSet = new Set(hidden);
+
         nodes = all.filter(n => !hiddenSet.has(n));
         for (const node of hidden) {
           this.processTextNode(node, false);
         }
       }
     }
+
     if (nodes.length === 0) {
       return;
     }
@@ -935,10 +1042,12 @@ export class PriceFixerContent {
     let combined = '';
     const spans: Array<{ node: Text; start: number; end: number }> = [];
     let prevParent: Node | null = null;
+
     for (const node of nodes) {
       const data = node.data;
       const newParent = prevParent !== node.parentNode;
       const continues = CONTINUES_NUMBER.test(data);
+
       if (
         combined &&
         newParent &&
@@ -949,10 +1058,12 @@ export class PriceFixerContent {
       ) {
         combined += ' ';
       }
+
       // "<span>5</span><sup>99</sup>" → superscript cents without a separator
       if (TWO_DIGITS.test(data) && ENDS_WITH_DIGIT.test(combined) && newParent) {
         combined += '.';
       }
+
       spans.push({ node, start: combined.length, end: combined.length + data.length });
       combined += data;
       prevParent = node.parentNode;
@@ -964,6 +1075,7 @@ export class PriceFixerContent {
     // Bare grouped number next to a currency icon (Digikala & co.)
     if (matches.length === 0 && this.isIconPrice(el, combined)) {
       const iconMatch = PricePatterns.iconAmountMatch(combined);
+
       if (iconMatch) {
         synthetic = true;
         matches = [iconMatch];
@@ -976,12 +1088,14 @@ export class PriceFixerContent {
     if (matches.length === 0 && hidden.length > 0) {
       const hiddenMatches = PricePatterns.findPrices(hidden.map(n => n.data).join(' '));
       const digits = (t: string): string => t.replace(/[^\d۰-۹٠-٩]/g, '');
+
       if (
         hiddenMatches.length === 1 &&
         digits(combined) === digits(hiddenMatches[0].originalText)
       ) {
         const trimmed = combined.trim();
         const start = combined.indexOf(trimmed);
+
         synthetic = true;
         matches = [
           {
@@ -996,13 +1110,16 @@ export class PriceFixerContent {
 
     for (const match of matches) {
       const covered = spans.filter(s => s.start < match.endIndex && s.end > match.startIndex);
+
       if (covered.length === 0) {
         continue;
       }
+
       if (covered.length === 1 && !synthetic) {
         this.processTextNode(covered[0].node, false);
         continue;
       }
+
       this.processSplitPrice(
         covered.map(s => ({
           node: s.node,
@@ -1017,9 +1134,11 @@ export class PriceFixerContent {
   /** Replace a price spread over several text nodes as one unit. */
   private processSplitPrice(nodes: CoveredNode[], match: PriceMatch): void {
     const roundedValue = this.roundPrice(match.value);
+
     if (roundedValue === match.value) {
       return;
     }
+
     if (nodes.some(s => this.touchedNodes.has(s.node) || !s.node.isConnected)) {
       return;
     }
@@ -1039,16 +1158,20 @@ export class PriceFixerContent {
       // fraction spans are styled as superscripts — we must not land there).
       const originals = Array.from(lca.childNodes).map(n => this.placementOf(n));
       const inserted = replacement();
+
       for (const { node } of originals) {
         lca.removeChild(node);
       }
+
       lca.appendChild(inserted);
       lca.setAttribute(UNIT_ATTR, '');
       for (const { node } of nodes) {
         this.touchedNodes.add(node);
       }
+
       this.records.push({ originals, inserted: [inserted], unitElement: lca });
       this.recordChange(match, newPriceText, roundedValue);
+
       return;
     }
 
@@ -1059,30 +1182,39 @@ export class PriceFixerContent {
     const originals: Placement[] = [];
     const inserted: Node[] = [];
     const host = nodes.find(s => /[\d۰-۹٠-٩]/.test(s.node.data.slice(s.from, s.to))) || nodes[0];
+
     for (const span of nodes) {
       const { node, from, to } = span;
       const parent = node.parentNode;
+
       if (!parent) {
         continue;
       }
+
       const pieces: Node[] = [];
+
       if (from > 0) {
         pieces.push(document.createTextNode(node.data.slice(0, from)));
       }
+
       if (span === host) {
         pieces.push(replacement());
       }
+
       if (to < node.data.length) {
         pieces.push(document.createTextNode(node.data.slice(to)));
       }
+
       originals.push(this.placementOf(node));
       for (const piece of pieces) {
         parent.insertBefore(piece, node);
         inserted.push(piece);
       }
+
       parent.removeChild(node);
       this.touchedNodes.add(node);
     }
+
     this.records.push({ originals, inserted });
     this.recordChange(match, newPriceText, roundedValue);
   }
@@ -1093,13 +1225,17 @@ export class PriceFixerContent {
 
   private commonAncestor(nodes: Node[]): Element | null {
     let ancestor: Node | null = nodes[0].parentNode;
+
     while (ancestor) {
       const a = ancestor;
+
       if (nodes.every(n => a.contains(n))) {
         return a.nodeType === Node.ELEMENT_NODE ? (a as Element) : null;
       }
+
       ancestor = ancestor.parentNode;
     }
+
     return null;
   }
 
@@ -1111,12 +1247,16 @@ export class PriceFixerContent {
     if (this.touchedNodes.has(node) || !node.isConnected) {
       return false;
     }
+
     const originalText = node.data;
+
     if (!originalText.trim() || !PricePatterns.mayContainPrice(originalText)) {
       return false;
     }
+
     if (checkAncestors) {
       const parent = node.parentElement;
+
       if (this.isOurs(node) || (parent && this.shouldSkipElement(parent, true))) {
         return false;
       }
@@ -1127,6 +1267,7 @@ export class PriceFixerContent {
     }
 
     const priceMatches = PricePatterns.findPrices(originalText);
+
     if (priceMatches.length === 0) {
       return false;
     }
@@ -1134,6 +1275,7 @@ export class PriceFixerContent {
     if (this.displayMode === 'highlight') {
       return this.processHighlightMode(node, originalText, priceMatches);
     }
+
     return this.processReplaceMode(node, originalText, priceMatches);
   }
 
@@ -1146,10 +1288,13 @@ export class PriceFixerContent {
 
     for (const match of [...priceMatches].reverse()) {
       const roundedValue = this.roundPrice(match.value);
+
       if (roundedValue === match.value) {
         continue;
       }
+
       const newPriceText = PricePatterns.formatPrice(roundedValue, match);
+
       modifiedText =
         modifiedText.substring(0, match.startIndex) +
         newPriceText +
@@ -1164,6 +1309,7 @@ export class PriceFixerContent {
     this.records.push({ originals: [], inserted: [], textNode: node, originalText });
     this.touchedNodes.add(node);
     node.data = modifiedText;
+
     return true;
   }
 
@@ -1173,6 +1319,7 @@ export class PriceFixerContent {
     priceMatches: PriceMatch[]
   ): boolean {
     const parent = node.parentNode;
+
     if (!parent) {
       return false;
     }
@@ -1182,14 +1329,17 @@ export class PriceFixerContent {
 
     for (const match of priceMatches) {
       const roundedValue = this.roundPrice(match.value);
+
       if (roundedValue === match.value) {
         continue;
       }
+
       const newPriceText = PricePatterns.formatPrice(roundedValue, match);
 
       if (match.startIndex > lastIndex) {
         inserted.push(document.createTextNode(originalText.substring(lastIndex, match.startIndex)));
       }
+
       inserted.push(this.createHighlight(match, newPriceText, roundedValue));
       this.recordChange(match, newPriceText, roundedValue);
       lastIndex = match.endIndex;
@@ -1198,18 +1348,22 @@ export class PriceFixerContent {
     if (inserted.length === 0) {
       return false;
     }
+
     if (lastIndex < originalText.length) {
       inserted.push(document.createTextNode(originalText.substring(lastIndex)));
     }
 
     const placement = this.placementOf(node);
+
     for (const n of inserted) {
       parent.insertBefore(n, node);
     }
+
     parent.removeChild(node);
     this.touchedNodes.add(node);
 
     this.records.push({ originals: [placement], inserted });
+
     return true;
   }
 
@@ -1226,10 +1380,12 @@ export class PriceFixerContent {
   ): HTMLElement {
     const diff = PricePatterns.priceDifference(match.value, roundedValue);
     const wrapper = document.createElement('span');
+
     wrapper.className = HIGHLIGHT_CLASS;
     wrapper.setAttribute('data-pf-original', match.originalText);
     wrapper.setAttribute('data-pf-diff', PricePatterns.formatPrice(diff, match));
     wrapper.textContent = newPriceText;
+
     return wrapper;
   }
 
@@ -1245,6 +1401,7 @@ export class PriceFixerContent {
   /** Keep only the most recent changes; older ones are of no use to the popup. */
   private trimPriceChanges(): void {
     const excess = this.priceChanges.length - MAX_TRACKED_CHANGES;
+
     if (excess > 0) {
       this.priceChanges.splice(0, excess);
     }
@@ -1261,6 +1418,7 @@ export class PriceFixerContent {
     if (this.records.length === 0) {
       return;
     }
+
     this.records = this.records.filter(record =>
       record.textNode ? record.textNode.isConnected : record.inserted.some(n => n.isConnected)
     );
@@ -1273,25 +1431,32 @@ export class PriceFixerContent {
       if (this.isProcessing) {
         return;
       }
+
       // A single-page checkout can turn the current page into a payment page
       // (new URL or a card form) without reloading. The DOM check is
       // throttled; a URL change is checked immediately.
       const navigated = window.location.href !== this.lastHref;
       const due = !this.paymentPage && Date.now() - this.lastPaymentCheck > 1000;
+
       if (this.pauseOnPayment && (navigated || due) && this.checkPaymentPage()) {
         if (this.paymentPage) {
           this.restoreOriginal();
+
           return;
         }
+
         this.reprocessPage();
+
         return;
       }
+
       if (!this.isEnabled) {
         return;
       }
 
       this.isProcessing = true;
       const before = this.priceChanges.length;
+
       try {
         for (const mutation of mutations) {
           if (mutation.type === 'childList') {
@@ -1302,15 +1467,18 @@ export class PriceFixerContent {
             }
           } else if (mutation.type === 'characterData') {
             const target = mutation.target;
+
             if (target.nodeType === Node.TEXT_NODE && !this.isOurs(target)) {
               this.touchedNodes.delete(target);
               this.processTextNode(target as Text);
             }
           }
         }
+
         if (this.priceChanges.length > before) {
           this.saveStats(this.priceChanges.slice(before));
         }
+
         this.trimPriceChanges();
         if (++this.mutationBatchesSincePrune >= PRUNE_EVERY_N_BATCHES) {
           this.mutationBatchesSincePrune = 0;
@@ -1335,6 +1503,7 @@ export class PriceFixerContent {
     if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         this.handleMessage(message, sendResponse);
+
         return true;
       });
     } else if (typeof browser !== 'undefined' && browser.runtime?.onMessage) {
@@ -1361,8 +1530,8 @@ export class PriceFixerContent {
       displayMode: this.displayMode,
       roundingStep: this.roundingStep,
       changes: this.priceChanges,
-      isShoppingSite: this.isShoppingSite,
-      shoppingSiteName: this.shoppingSiteName,
+      isShoppingSite: this.shop !== null,
+      shoppingSiteName: this.shop?.name ?? null,
       domain: this.currentDomain,
       ruleErrors: this.rules.errors,
     };
@@ -1376,6 +1545,7 @@ export class PriceFixerContent {
       blocked?: boolean;
       domain?: string;
     };
+
     switch (message.action) {
       case 'toggle':
         this.setGlobalEnabled(!this.globalEnabled);
@@ -1405,6 +1575,7 @@ export class PriceFixerContent {
 
       case 'setMode': {
         const mode: DisplayMode = message.mode === 'replace' ? 'replace' : 'highlight';
+
         this.displayMode = mode;
         this.saveSetting({ displayMode: mode });
         this.reprocessPage();
@@ -1414,16 +1585,19 @@ export class PriceFixerContent {
 
       case 'setSiteEnabled': {
         const enabled = message.enabled !== false;
+
         this.siteEnabled = enabled;
         this.saveSiteSetting(enabled);
         if (enabled) {
           this.setSitePaused(false);
         }
+
         if (this.isEnabled) {
           this.reprocessPage();
         } else {
           this.restoreOriginal();
         }
+
         sendResponse({ success: true, ...this.status() });
         break;
       }
@@ -1435,6 +1609,7 @@ export class PriceFixerContent {
         } else {
           this.restoreOriginal();
         }
+
         sendResponse({ success: true, ...this.status() });
         break;
       }
@@ -1448,6 +1623,7 @@ export class PriceFixerContent {
         } else {
           this.restoreOriginal();
         }
+
         sendResponse({ success: true, ...this.status() });
         break;
       }
@@ -1467,6 +1643,7 @@ export class PriceFixerContent {
     if (enabled) {
       this.setSitePaused(false);
     }
+
     if (this.isEnabled) {
       this.reprocessPage();
     } else {
@@ -1491,6 +1668,7 @@ export class PriceFixerContent {
         if (record.textNode.isConnected) {
           record.textNode.data = record.originalText || '';
         }
+
         this.touchedNodes.delete(record.textNode);
         continue;
       }
@@ -1499,13 +1677,17 @@ export class PriceFixerContent {
         if (parent.isConnected) {
           parent.insertBefore(node, next && next.parentNode === parent ? next : null);
         }
+
         this.touchedNodes.delete(node);
       }
+
       for (const n of record.inserted) {
         n.parentNode?.removeChild(n);
       }
+
       record.unitElement?.removeAttribute(UNIT_ATTR);
     }
+
     this.records = [];
     this.priceChanges = [];
     this.pricesRounded = 0;
@@ -1518,6 +1700,7 @@ export class PriceFixerContent {
       this.observer.disconnect();
       this.observer = null;
     }
+
     this.restoreOriginal();
   }
 }

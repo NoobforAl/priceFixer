@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Price Fixer protected sites",
+  "description": "Pages where the exact amount matters: payments, banking, trading, crypto, accounting, tax, invoices. They are left untouched while pauseOnPayment is on (the default). The popup says \"Paused on this <reason> for safety\". Loaded by src/sites/siteGuard.ts.",
+  "type": "object",
+  "required": ["hostGroups", "pathSegmentGroups", "cardFieldSelectors"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "hostGroups": {
+      "description": "Every page on these hosts and their subdomains is protected, whatever the path. Groups are checked in order; the first match gives the reason.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reason", "hosts"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Unique group name, for readability only.",
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "reason": { "$ref": "#/definitions/reason" },
+          "hosts": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "#/definitions/domain" }
+          }
+        }
+      }
+    },
+    "pathSegmentGroups": {
+      "description": "URL path segments (or subdomain labels) that mark a protected step on any site. Matched as whole segments, so a product slug like \"checkout-counter-toy\" does not count. Don't add \"cart\": a basket is still browsing.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["reason", "segments"],
+        "additionalProperties": false,
+        "properties": {
+          "reason": { "$ref": "#/definitions/reason" },
+          "segments": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+          }
+        }
+      }
+    },
+    "cardFieldSelectors": {
+      "description": "CSS selectors for card-entry fields and gateway iframes, for sites that render their own card form instead of redirecting to a gateway.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "definitions": {
+    "domain": {
+      "description": "Bare lowercase domain, no scheme or www. Also matches its subdomains.",
+      "type": "string",
+      "pattern": "^([a-z0-9-]+\\.)+[a-z0-9-]+$"
+    },
+    "reason": {
+      "description": "Shown in the popup: \"Paused on this <reason> for safety\". A short noun phrase, e.g. \"bank site\".",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

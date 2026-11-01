@@ -78,6 +78,7 @@ class OptionsController {
     for (const id of ['ruleSelectorsAll', 'ruleSelectors', 'ruleExclude', 'ruleExtra']) {
       document.getElementById(id).addEventListener('input', () => this.markRulesDirty(true));
     }
+
     on('rulesSave', () => this.saveRules());
 
     on('resetStatsBtn', () => this.resetStats());
@@ -88,12 +89,15 @@ class OptionsController {
   trackSections() {
     const links = [...document.querySelectorAll('#toc a')];
     const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+
     if (!('IntersectionObserver' in window) || sections.length === 0) {
       return;
     }
+
     const visible = new Set();
     const update = () => {
       const first = sections.find(s => visible.has(s)) || sections[0];
+
       for (const a of links) {
         a.classList.toggle('active', a.getAttribute('href') === `#${first.id}`);
       }
@@ -107,10 +111,12 @@ class OptionsController {
             visible.delete(entry.target);
           }
         }
+
         update();
       },
       { rootMargin: '-10% 0px -60% 0px' }
     );
+
     sections.forEach(s => observer.observe(s));
     update();
   }
@@ -118,6 +124,7 @@ class OptionsController {
   showVersion() {
     try {
       const { name, version } = api.runtime.getManifest();
+
       document.getElementById('footer').textContent = `${name} ${version}`;
     } catch {
       // keep the static footer
@@ -132,11 +139,13 @@ class OptionsController {
     } catch {
       this.settings = {};
     }
+
     this.siteSelectors = { ...this.rules().excludeSelectors };
     delete this.siteSelectors['*'];
     for (const domain of Object.keys(this.siteSelectors)) {
       this.siteSelectors[domain] = this.siteSelectors[domain].join('\n');
     }
+
     if (!(this.currentRuleSite in this.siteSelectors)) {
       this.currentRuleSite = Object.keys(this.siteSelectors).sort()[0] || '';
     }
@@ -158,29 +167,38 @@ class OptionsController {
     if (!api.storage || !api.storage.onChanged) {
       return;
     }
+
     api.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes.stats) {
         this.renderStats();
+
         return;
       }
+
       if (area !== 'sync') {
         return;
       }
+
       let touched = false;
+
       for (const key of SYNC_KEYS) {
         if (key in changes) {
           this.settings[key] = changes[key].newValue;
           touched = true;
         }
       }
+
       if (!touched) {
         return;
       }
+
       if (changes.customRules && !this.rulesDirty) {
         // Another page changed the rules and we have no unsaved edits: reload the drafts
         this.load().then(() => this.render());
+
         return;
       }
+
       this.render();
     });
   }
@@ -189,22 +207,26 @@ class OptionsController {
 
   blockedSites() {
     const list = this.settings.blockedSites;
+
     return Array.isArray(list) ? list.filter(d => typeof d === 'string') : [];
   }
 
   siteSettings() {
     const s = this.settings.siteSettings;
+
     return s && typeof s === 'object' ? s : {};
   }
 
   rules() {
     const r = this.settings.customRules || {};
     const selectors = {};
+
     for (const [domain, list] of Object.entries(r.excludeSelectors || {})) {
       if (Array.isArray(list)) {
         selectors[domain] = list.filter(s => typeof s === 'string');
       }
     }
+
     return {
       excludeSelectors: selectors,
       excludePatterns: Array.isArray(r.excludePatterns) ? r.excludePatterns : [],
@@ -217,31 +239,38 @@ class OptionsController {
   addBlockedFromInput() {
     const input = document.getElementById('blockInput');
     const domain = normalizeDomain(input.value);
+
     if (!domain) {
       input.focus();
+
       return;
     }
+
     input.value = '';
     this.setBlocked(domain, true);
   }
 
   setBlocked(domain, blocked) {
     const list = this.blockedSites().filter(d => d !== domain);
+
     if (blocked) {
       list.push(domain);
     }
+
     return this.save({ blockedSites: list });
   }
 
   renderBlockedSites() {
     const list = this.blockedSites();
     const container = document.getElementById('blockList');
+
     container.textContent = '';
     document.getElementById('blockEmpty').hidden = list.length > 0;
     for (const domain of [...list].sort()) {
       const remove = this.linkButton('Remove', `Unblock ${domain}`, () =>
         this.setBlocked(domain, false)
       );
+
       container.appendChild(this.listItem(domain, [remove]));
     }
   }
@@ -251,23 +280,30 @@ class OptionsController {
   addSiteFromInput() {
     const input = document.getElementById('siteInput');
     const domain = normalizeDomain(input.value);
+
     if (!domain) {
       input.focus();
+
       return;
     }
+
     input.value = '';
     this.setSiteEnabled(domain, false);
   }
 
   setSiteEnabled(domain, enabled) {
     const siteSettings = { ...this.siteSettings() };
+
     siteSettings[domain] = { ...(siteSettings[domain] || {}), enabled };
+
     return this.save({ siteSettings });
   }
 
   removeSite(domain) {
     const siteSettings = { ...this.siteSettings() };
+
     delete siteSettings[domain];
+
     return this.save({ siteSettings });
   }
 
@@ -275,14 +311,17 @@ class OptionsController {
     const sites = this.siteSettings();
     const domains = Object.keys(sites).sort();
     const container = document.getElementById('siteList');
+
     container.textContent = '';
     document.getElementById('siteEmpty').hidden = domains.length > 0;
     for (const domain of domains) {
       const enabled = !sites[domain] || sites[domain].enabled !== false;
       const state = document.createElement('span');
+
       state.className = 'state';
       state.textContent = enabled ? 'On' : 'Off';
       const toggle = document.createElement('button');
+
       toggle.className = `switch${enabled ? ' on' : ''}`;
       toggle.setAttribute('role', 'switch');
       toggle.setAttribute('aria-checked', String(enabled));
@@ -291,6 +330,7 @@ class OptionsController {
       const remove = this.linkButton('Remove', `Remove settings for ${domain}`, () =>
         this.removeSite(domain)
       );
+
       container.appendChild(this.listItem(domain, [state, toggle, remove]));
     }
   }
@@ -300,6 +340,7 @@ class OptionsController {
   /** Save the global rounding step, or clear it to fall back to charm-only rounding. */
   async setRoundingStep(rawValue) {
     const value = parseFloat(rawValue);
+
     if (rawValue === '' || isNaN(value) || value <= 0) {
       delete this.settings.roundingStep;
       this.render();
@@ -309,8 +350,10 @@ class OptionsController {
       } catch {
         this.toast('Could not save — storage unavailable');
       }
+
       return;
     }
+
     await this.save({ roundingStep: value });
   }
 
@@ -318,11 +361,15 @@ class OptionsController {
     const domainInput = document.getElementById('roundingSiteInput');
     const stepInput = document.getElementById('roundingSiteStepInput');
     const domain = normalizeDomain(domainInput.value);
+
     if (!domain) {
       domainInput.focus();
+
       return;
     }
+
     const value = parseFloat(stepInput.value);
+
     domainInput.value = '';
     stepInput.value = '';
     this.setSiteRoundingStep(domain, isNaN(value) ? '' : String(value));
@@ -333,16 +380,19 @@ class OptionsController {
     const value = parseFloat(rawValue);
     const siteSettings = { ...this.siteSettings() };
     const entry = { ...(siteSettings[domain] || {}) };
+
     if (rawValue === '' || isNaN(value) || value < 0) {
       delete entry.roundingStep;
     } else {
       entry.roundingStep = value;
     }
+
     if (Object.keys(entry).length === 0) {
       delete siteSettings[domain];
     } else {
       siteSettings[domain] = entry;
     }
+
     return this.save({ siteSettings });
   }
 
@@ -352,16 +402,19 @@ class OptionsController {
       .filter(d => typeof sites[d].roundingStep === 'number')
       .sort();
     const container = document.getElementById('roundingSiteList');
+
     container.textContent = '';
     document.getElementById('roundingSiteEmpty').hidden = domains.length > 0;
     for (const domain of domains) {
       const step = sites[domain].roundingStep;
       const value = document.createElement('span');
+
       value.className = 'row-sub';
       value.textContent = step === 0 ? 'default (forced)' : `step ${step}`;
       const remove = this.linkButton('Remove', `Remove rounding override for ${domain}`, () =>
         this.setSiteRoundingStep(domain, '')
       );
+
       container.appendChild(this.listItem(domain, [value, remove]));
     }
   }
@@ -389,15 +442,19 @@ class OptionsController {
   addRuleSiteFromInput() {
     const input = document.getElementById('ruleSiteInput');
     const domain = normalizeDomain(input.value);
+
     if (!domain) {
       input.focus();
+
       return;
     }
+
     input.value = '';
     this.stashCurrentSiteSelectors();
     if (!(domain in this.siteSelectors)) {
       this.siteSelectors[domain] = '';
     }
+
     this.currentRuleSite = domain;
     this.renderRuleSitePicker();
     document.getElementById('ruleSelectors').focus();
@@ -406,20 +463,26 @@ class OptionsController {
   renderRuleSitePicker() {
     const select = document.getElementById('ruleSiteSelect');
     const textarea = document.getElementById('ruleSelectors');
+
     select.textContent = '';
     const domains = Object.keys(this.siteSelectors).sort();
+
     if (domains.length === 0) {
       const opt = document.createElement('option');
+
       opt.value = '';
       opt.textContent = 'No site yet — add one';
       select.appendChild(opt);
     }
+
     for (const domain of domains) {
       const opt = document.createElement('option');
+
       opt.value = domain;
       opt.textContent = domain;
       select.appendChild(opt);
     }
+
     select.value = this.currentRuleSite;
     select.disabled = domains.length === 0;
     textarea.disabled = !this.currentRuleSite;
@@ -428,6 +491,7 @@ class OptionsController {
 
   renderRules() {
     const rules = this.rules();
+
     document.getElementById('ruleSelectorsAll').value = (rules.excludeSelectors['*'] || []).join(
       '\n'
     );
@@ -454,9 +518,11 @@ class OptionsController {
         errors.push(`${source}: ${e.message}`);
       }
     };
+
     for (const list of Object.values(rules.excludeSelectors)) {
       list.forEach(checkSelector);
     }
+
     rules.excludePatterns.forEach(p => checkRegex(p, 'iu'));
     for (const source of rules.extraPatterns) {
       if (!source.includes('(?<amount>')) {
@@ -465,6 +531,7 @@ class OptionsController {
         checkRegex(source, 'giu');
       }
     }
+
     return errors;
   }
 
@@ -474,19 +541,24 @@ class OptionsController {
         .split('\n')
         .map(l => l.trim())
         .filter(Boolean);
+
     this.stashCurrentSiteSelectors();
 
     const excludeSelectors = {};
     const allLines = lines(document.getElementById('ruleSelectorsAll').value);
+
     if (allLines.length) {
       excludeSelectors['*'] = allLines;
     }
+
     for (const [domain, text] of Object.entries(this.siteSelectors)) {
       const siteLines = lines(text);
+
       if (siteLines.length) {
         excludeSelectors[domain] = siteLines;
       }
     }
+
     const customRules = {
       excludeSelectors,
       excludePatterns: lines(document.getElementById('ruleExclude').value),
@@ -494,6 +566,7 @@ class OptionsController {
     };
 
     const errors = this.validateRules(customRules);
+
     document.getElementById('rulesErrors').textContent = errors.length
       ? `Ignored (invalid):\n${errors.join('\n')}`
       : '';
@@ -512,11 +585,13 @@ class OptionsController {
 
   async renderStats() {
     let stats = {};
+
     try {
       stats = (await api.storage.local.get(['stats'])).stats || {};
     } catch {
       // Stats not available
     }
+
     document.getElementById('totalRounded').textContent = stats.totalPricesRounded || 0;
     document.getElementById('hiddenAmount').textContent = (stats.totalHiddenAmount || 0).toFixed(2);
   }
@@ -528,6 +603,7 @@ class OptionsController {
     } catch {
       this.toast('Could not reset statistics');
     }
+
     this.renderStats();
   }
 
@@ -535,12 +611,14 @@ class OptionsController {
     if (!window.confirm('Reset every Price Fixer setting to its default?')) {
       return;
     }
+
     try {
       await api.storage.sync.remove(SYNC_KEYS);
       this.toast('Settings reset');
     } catch {
       this.toast('Could not reset settings');
     }
+
     this.currentRuleSite = '';
     await this.load();
     this.render();
@@ -551,12 +629,14 @@ class OptionsController {
   render() {
     const s = this.settings;
     const globalEnabled = s.globalEnabled !== false;
+
     this.setSwitch('globalSwitch', globalEnabled);
     document.getElementById('globalSub').textContent = globalEnabled
       ? 'On everywhere'
       : 'Off everywhere';
 
     const highlight = s.displayMode !== 'replace';
+
     this.setRadio('modeHighlight', highlight);
     this.setRadio('modeReplace', !highlight);
     document.getElementById('modeHint').textContent = highlight
@@ -564,6 +644,7 @@ class OptionsController {
       : 'Silently swaps listed prices for the real ones.';
 
     const theme = themePreference(s.theme);
+
     this.setRadio('themeSystem', theme === 'system');
     this.setRadio('themeLight', theme === 'light');
     this.setRadio('themeDark', theme === 'dark');
@@ -574,9 +655,11 @@ class OptionsController {
     this.renderSites();
 
     const roundingStepInput = document.getElementById('roundingStepInput');
+
     if (document.activeElement !== roundingStepInput) {
       roundingStepInput.value = typeof s.roundingStep === 'number' ? s.roundingStep : '';
     }
+
     this.renderRoundingSites();
     if (!this.rulesDirty) {
       this.renderRules();
@@ -585,37 +668,45 @@ class OptionsController {
 
   setSwitch(id, on) {
     const el = document.getElementById(id);
+
     el.classList.toggle('on', !!on);
     el.setAttribute('aria-checked', on ? 'true' : 'false');
   }
 
   setRadio(id, on) {
     const el = document.getElementById(id);
+
     el.classList.toggle('active', !!on);
     el.setAttribute('aria-checked', on ? 'true' : 'false');
   }
 
   listItem(domain, controls) {
     const item = document.createElement('div');
+
     item.className = 'list-item';
     const name = document.createElement('span');
+
     name.className = 'domain';
     name.textContent = domain;
     item.append(name, ...controls);
+
     return item;
   }
 
   linkButton(label, ariaLabel, handler) {
     const button = document.createElement('button');
+
     button.className = 'link-btn';
     button.textContent = label;
     button.setAttribute('aria-label', ariaLabel);
     button.addEventListener('click', handler);
+
     return button;
   }
 
   toast(text) {
     const el = document.getElementById('toast');
+
     el.textContent = text;
     el.classList.add('visible');
     clearTimeout(this.toastTimer);

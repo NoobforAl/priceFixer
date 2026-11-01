@@ -9,8 +9,8 @@ module.exports = (env = {}) => {
   return {
     mode: 'production',
     entry: {
-      background: './src/background.ts',
-      content: './src/content.ts',
+      background: './src/background/index.ts',
+      content: './src/content/index.ts',
     },
     module: {
       rules: [

@@ -1,233 +1,86 @@
-# Price Fixer - Browser Extension
+# Price Fixer
 
-## Project Overview
+Chrome/Firefox extension (Manifest V3, TypeScript, webpack) that finds charm
+prices on web pages and shows them rounded up: **$5.99 is $6, not $5.**
 
-Chrome/Firefox browser extension (Manifest V3) that detects psychological/charm
-pricing on web pages and exposes it by rounding prices up. $5.99 is $6, not $5.
-Written in TypeScript, bundled with Webpack.
+## Rules for working in this repo
 
-## Tech Stack
+1. **Run tasks through `make`, never by hand.** Don't type `npm run …`, `npx …`,
+   `jest`, `eslint`, `tsc`, `webpack` or `web-ext` directly. Each task has a
+   target (`make help` lists them), and the targets chain the steps the raw
+   commands skip (e.g. `make firefox` builds first; `make check` runs everything
+   CI runs). If something you need has no target, add one to the `Makefile` (and
+   an npm script if needed) rather than running it ad hoc.
+2. **Before saying a change works, run `make check`.** It runs type-check, lint,
+   format check, unit tests, Mozilla's add-on linter and both builds. Fix
+   formatting with `make format`, not by hand.
+3. **Domains and selectors are data, not code.** Shops go in
+   `src/config/shops.json`, payment / bank / trading / tax sites in
+   `src/config/protected-sites.json`. Don't hard-code lists in TypeScript.
+4. **Touching the scan loop in `priceFixerContent.ts`?** Run `make bench` before
+   and after.
+5. **Version numbers** live in four files; change them only with
+   `make version V=x.y.z`.
 
-- **Language**: TypeScript 6 (strict mode, ES2020 target)
-- **Bundler**: Webpack 5 (entry points: `src/background.ts`, `src/content.ts`)
-- **Testing**: Jest 30 with jsdom environment, ts-jest
-- **Linting**: ESLint 10 (flat config `eslint.config.js`) + typescript-eslint
-  8 + Prettier 3.8. `npm run lint` / `format:check` cover `src/`, the plain-JS
-  pages (`popup.js`, `options.js`, `ui-common.js`) and `scripts/`.
-- **Regex**: Uses `regex` npm package for readable tagged template patterns
-- **Git hooks**: Husky 9 + lint-staged 17 (pre-commit: eslint --fix + prettier)
+## Commands
 
-## Key Commands
+| Task                         | Command                         |
+| ---------------------------- | ------------------------------- |
+| Install dependencies         | `make install`                  |
+| Everything before a commit   | `make check`                    |
+| Unit tests only              | `make test`                     |
+| Fix lint + formatting        | `make format`                   |
+| Try it in real Firefox       | `make firefox`                  |
+| Watch build (Chrome/Firefox) | `make dev` / `make dev-firefox` |
+| Performance benchmarks       | `make bench`                    |
+| Release zips                 | `make package`                  |
+| Bump version                 | `make version V=1.5.0`          |
 
-```bash
-npm run dev            # Webpack watch mode (development, Chrome)
-npm run dev:firefox    # Webpack watch mode (development, Firefox)
-npm run build          # Production build to dist/ (Chrome)
-npm run build:firefox  # Production build to dist-firefox/ (Firefox)
-npm run build:all      # Build both Chrome + Firefox
-npm run package        # Build both + zip as price-fixer-{chrome,firefox}.zip
-npm test               # Run Jest tests
-npm run validate       # Type-check + lint + format-check + test (full CI check)
-npm run lint:fix       # Auto-fix lint issues
-npm run format         # Auto-format code
-npm run type-check     # tsc --noEmit
-npm run bench          # Scan/mutation/rescan timings on a 3,000-card synthetic page (jsdom)
-npm run dev:test       # Build Chrome + open test page at localhost:3456
-npm run dev:test:firefox  # Build Firefox + open test page
+## Where things are
+
+```
+src/background/   service worker (shortcut, inject into open tabs)
+src/content/      page engine: PriceFixerContent, custom rules
+src/pricing/      price detection, charm rule, rounding, formatting
+src/sites/        domain matching, known shops, site guard (blocklist + protected pages)
+src/config/       shops.json, protected-sites.json + JSON Schemas
+tests/unit/       Jest + jsdom    tests/bench/  benchmarks    tests/manual/  test page
+popup.*, options.*, ui-common.js, ui.css   plain-JS extension pages (not bundled)
+manifest.json / manifest.firefox.json       Chrome / Firefox manifests
 ```
 
-## Architecture
+## Things that bite
 
-### Source Files (`src/`)
+- **`regex` library:** plain `( )` groups silently become `(?: )`. Capture
+  amounts as `(?<amount> … )`. Every price pattern is anchored on a currency
+  symbol or code; never add unanchored number patterns (they rewrote dates,
+  phone numbers, "15 days", "Save 25%").
+- **Restore must be exact.** Every DOM change is recorded (`ProcessedRecord`)
+  and `restoreOriginal()` only removes what the extension inserted. Don't edit
+  page nodes outside that mechanism.
+- **Our own DOM edits trigger the MutationObserver.** Call
+  `observer.takeRecords()` after editing, as the existing code does.
+- **Highlight mode keeps `textContent` = the honest price**, so site scripts
+  that parse prices keep working. The listed price lives in `data-pf-original`.
+- **Shadow DOM is not scanned** (known limitation, documented by a test).
+- **ESLint layout rules** (braces always, blank line after blocks / declarations
+  / before `return`) sit _after_ `eslint-config-prettier` in `eslint.config.js`,
+  because it turns `curly` off.
+- **Firefox MV3** doesn't grant host permissions until the user allows the site;
+  the popup's "Enable on this site" does that.
 
-- `content.ts` - Content script bootstrap only (creates one `PriceFixerContent`,
-  tears it down on `pagehide`).
-- `priceFixerContent.ts` - The page engine. `PriceFixerContent` class:
-  - **Highlight mode** (default):
-    `<span class="pf-highlight" data-pf-original="$5.99">$6</span>`. Only the
-    honest price is rendered (highlighted); the listed price and the difference
-    appear in one shared fixed-position tooltip (`#pf-tooltip`) on hover.
-    `textContent` is just the honest price, so site JS that parses price text
-    keeps working. Styles go through `adoptedStyleSheets` (CSP-proof) with
-    `!important` everywhere.
-  - **Replace mode**: silently swaps the text.
-  - Every change is a `ProcessedRecord` (`originals` / `inserted` nodes).
-    `restoreOriginal()` re-inserts the originals in front of the inserted nodes
-    and removes only what we added — never touches sibling nodes.
-  - **Split prices**: "compact" elements (≤40 chars of text, child elements,
-    currency marker) are scanned as one string mapped back to text nodes.
-    Screen-reader-only nodes (Amazon `.a-offscreen`) are processed separately,
-    never merged. A price spanning several nodes is swapped as a unit when the
-    common ancestor holds only that price (keeps Amazon's styling); otherwise
-    the node carrying the digits hosts the new price and the other covered nodes
-    are emptied (Walmart `Now`/`$`/`11`/`87`). Every original keeps its
-    parent/next-sibling (`Placement`) so restore is exact.
-  - **Icon currencies**: a bare grouped Persian/Arabic-digit amount next to an
-    `<svg>`/`<img>` (Digikala's Toman icon) is a price; ASCII digits count too
-    on `lang=fa/ar` or `dir=rtl` pages.
-  - Skips `SKIP_TAGS` (script/style/code/pre/select/option/svg/…),
-    `contenteditable`, and our own nodes. MutationObserver handles dynamic
-    content; `observer.takeRecords()` after our own DOM edits stops feedback.
-  - **Performance**: the page scan is an explicit stack (`scanNode`) run in ~12
-    ms slices — the first slice is synchronous, the rest yield via
-    `requestIdleCallback`; `restoreOriginal()`/`processPage()` bump
-    `scanGeneration` to cancel a pending scan. Ancestor checks (`closest`) run
-    only at a walk's root (`root` flag), never per descendant. The
-    screen-reader-hidden check (`getComputedStyle` + `getBoundingClientRect`,
-    forces layout) runs only for compact elements holding a complete price next
-    to other digit nodes, after cheap class/attribute checks, cached per parent.
-    Measure with `npm run bench` before touching any of this.
-  - Settings in `storage.sync` (`globalEnabled`, `displayMode`, `roundingStep`,
-    `siteSettings[domain]`), stats in `storage.local`, and a per-site **session
-    pause** in `storage.session` (`pausedSites`): after "Show originals" the
-    site stays untouched until Rescan / re-enable.
-  - **Custom rounding step**: `roundingStep` (global) and
-    `siteSettings[domain].roundingStep` (per-site override; `0` forces the
-    default on that site) switch every matched price — not just charm prices —
-    to `PricePatterns.roundToStep()`: always the next multiple of the step, even
-    one already sitting on it (`1,900,000` with a `100,000` step → `2,000,000`),
-    since that's the anchoring trick it exposes. `null`/unset keeps the default
-    charm-only rule.
-- `siteGuard.ts` - Blocklist and payment-page detection.
-  `storage.sync.blockedSites` (domains + subdomains, edited from popup →
-  Security) and `storage.sync.pauseOnPayment` (default on): payment gateways by
-  host, checkout URLs by whole path segment / subdomain label, card forms by
-  `cc-*` autocomplete, card `name`/`id` fields and gateway iframes. The content
-  script re-checks on URL change and (throttled to 1/s) on mutations, so
-  single-page checkouts are restored when the card form appears.
-- `customRules.ts` - User rules from `storage.sync.customRules` (popup → Rules):
-  per-site/global exclude selectors, exclude regexes, extra price regexes (must
-  capture `(?<amount>…)`). Compiled per page; errors reported in
-  `getStatus().ruleErrors`.
-- `background.ts` - Service worker. Keyboard shortcut (`Ctrl+Shift+P`), injects
-  `content.js` into already-open tabs on install/update.
-- `pricePatterns.ts` - `PricePatterns`: `findPrices()`, `isCharmPrice()`,
-  `roundUpPrice()`, `roundToStep()`, `priceDifference()`, `formatPrice()`.
-  Format-preserving output (European vs American number formats, Persian/Arabic
-  digits).
-- `regex-patterns.ts` - Patterns built with the `regex` library. **The library
-  is named-capture-only: plain `( )` groups silently become `(?: )`.** Every
-  amount is captured as `(?<amount> … )`. All patterns are anchored on a
-  currency symbol or ISO code; unanchored number patterns are deliberately
-  absent (they rewrote dates, phone numbers, "15 days", "Save 25%").
+## Rounding rule (default)
 
-### Non-bundled Files
+Only charm prices change: any fractional amount → next whole unit
+(`$5.49 → $6`); a whole amount of 2+ digits ending in 9 → +1 (`$199 → $200`),
+also after dropping trailing `000` groups (`999,000 → 1,000,000`). `$9`,
+`$12.00`, `$101` stay. Output keeps the page's separators, digit script and
+grouping. A user-set rounding step replaces this rule for every price (always
+strictly higher).
 
-- `icons/icon.svg` - Source of every icon size. Regenerate the PNGs by rendering
-  the SVG at 16/32/48/128 (`icons/icon-<size>.png`); `icons/icon.png` is the
-  512px store asset and is not shipped.
-- `screenshots/` - README images captured from Firefox (`00`–`10`).
-- `scripts/package.js` - `npm run package`: builds both targets and zips them
-  (bsdtar on Windows, `zip` elsewhere). CI uses it.
-- `popup.html` / `popup.js` - Extension popup UI (vanilla JS). Dark card design
-  with mode toggle, per-site enable/disable, stats dashboard, changes list.
-- `options.html` / `options.js` - Full-page settings (`options_ui`,
-  `open_in_tab`), opened from the popup's **Settings** button via
-  `runtime.openOptionsPage()`. Reads/writes `storage.sync` directly; content
-  scripts follow through `storage.onChanged`. Adds what the popup can't show:
-  every `siteSettings` entry, rules for any domain, the **Rounding** section
-  (global step + per-site overrides), reset stats/settings.
-- `ui-common.js` - `api` / `isPromiseApi` detection, `normalizeDomain()` and the
-  theme (`storage.sync.theme`: `system` | `light` | `dark`, mirrored in
-  `localStorage` so pages open in the right theme; sets `<html data-theme>`),
-  loaded as globals by both pages.
-- `ui.css` - Shared tokens and controls for both pages. Light by default, dark
-  under `prefers-color-scheme: dark` or `data-theme="dark"`; every colour is a
-  custom property, so page styles never hard-code colours.
-- `manifest.json` - Chrome Manifest V3.
-- `manifest.firefox.json` - Firefox Manifest V3 (uses `background.scripts`
-  instead of `service_worker`).
-- `eslint.config.js` - ESLint flat config (v10).
+## More detail
 
-### Build Output
-
-- `dist/` - Chrome build. Load in Chrome as unpacked extension.
-- `dist-firefox/` - Firefox build. Load in Firefox via `about:debugging`.
-
-## Rounding Rules
-
-Only charm prices are touched; everything else is left exactly as is.
-
-- Any fractional amount → next whole unit: `$5.99 → $6`, `$5.49 → $6`,
-  `$149.99 → $150`, `€1.299,99 → €1.300`
-- Whole amount of 2+ digits ending in 9 → +1: `$19 → $20`, `$199 → $200`
-- Same after dropping trailing all-zero thousand groups:
-  `۱٬۲۹۹٬۰۰۰ تومان → ۱٬۳۰۰٬۰۰۰`, `999,000 → 1,000,000`
-- Not charm, unchanged: `$9`, `$12.00`, `$101`, `$500.00`, `¥2,980`, `9,000`
-
-Output keeps the original separators (`1.299,99`, `1 299`, `۱٬۲۹۹`), digit
-script (Persian/Arabic-Indic) and grouping style (`RMB 9999 → RMB 10000`).
-
-### Custom rounding step
-
-Setting a **rounding step** (Options → Rounding, global or per-site) replaces
-the charm-only rule above: every matched price is rounded up to the next
-multiple of the step, always strictly higher — even one already sitting on a
-multiple, since numbers are deliberately anchored just under a round figure:
-
-- `10.90` with step `1` → `11`
-- `1,900,000` with step `100,000` → `2,000,000` (already a multiple, still
-  bumped — that's the point)
-- `12.00` with step `5` → `15`
-
-A per-site value of `0` forces the default charm-only rule on that site even
-when a global step is set.
-
-## Testing
-
-`jest.config.js` (ts-jest + jsdom). Tests live in `src/__tests__/`:
-`pricePatterns.test.ts` (detection, rounding, formatting, negative cases),
-`content.test.ts` (highlight/replace/restore/split prices/observer/site guard),
-`siteGuard.test.ts` and `customRules.test.ts`. For a real browser check:
-`npm run build:firefox`, then
-`npx web-ext run --source-dir dist-firefox --start-url http://localhost:3456/`
-with `node scripts/dev-server.js` running. Firefox MV3 does not grant
-`host_permissions` until the user allows the site; the popup offers "Enable on
-this site" for that.
-
-## Supported Currencies
-
-Symbols
-($ € £ ¥ ￥ ₹ ₽ ₩ ₺ ₪ ₫ … ﷼), ISO codes ("299 EUR", "USD 12.99", "RMB
-5999"), prefix words ("Rs. 499", "US$
-5") and suffix words (تومان, ریال, 元, 円, 원, zł, Kč, kr, lei, Ft, руб, грн,
-TL). Persian/Arabic digits, Arabic separators (٬ ٫), European formats
-(1.299,99), space thousands (1 299), the Swiss/French apostrophe thousands
-separator (`CHF 1'234.50`, straight `'` or typographic `’`), and Indian
-lakh/crore grouping (`₹1,23,456`, 2-digit groups before the final 3-digit group)
-are supported. Ranges, was/now offers, subscriptions and "starting at" phrases
-need no special patterns: each price in them is matched individually and the
-surrounding text is preserved. A leading minus sign (ASCII `-` or Unicode `−`
-U+2212) on a refund/negative amount is never part of the match, so it's always
-left exactly as-is.
-
-**Known limitation**: content inside a **shadow DOM** (open or closed) is not
-scanned — `MutationObserver` and `querySelectorAll` don't cross shadow
-boundaries, so prices rendered by web-component-based widgets are invisible to
-`PriceFixerContent`. Documented by a test in `content.test.ts` rather than
-worked around, since a real fix means observing every discovered shadow root
-individually (and closed roots are unreachable from a content script no matter
-what).
-
-## Extension Messaging
-
-Popup communicates with content script via `tabs.sendMessage`. Actions:
-`getStatus`, `toggle`, `setGlobalEnabled`, `setSiteEnabled`, `setMode`,
-`reprocess` (clears the session pause), `restore` (sets it), `setBlocked`
-(`{domain?, blocked}`), `setPauseOnPayment`, `getStats`. Every action replies
-with the full status object (`enabled`, `globalEnabled`, `siteEnabled`,
-`sitePaused`, `siteBlocked`, `blockedSites`, `pauseOnPayment`, `paymentPage`,
-`paymentReason`, `displayMode`, `processedCount`, `changes`, …). The content
-script also listens to `storage.onChanged` so other tabs follow.
-
-## CI/CD
-
-GitHub Actions workflows in `.github/workflows/`:
-
-- `ci.yml` - Main pipeline (lint, test, build on Node 20.x/22.x, packages via
-  `scripts/package.js`)
-- `pr-check.yml` - PR validation
-- `security.yml` - Dependency audit + CodeQL
-- `release.yml` - On `v*` tags: validate, build, attach both zips to a GitHub
-  release, then publish to the Chrome Web Store / AMO when the store secrets
-  (`CHROME_*`, `AMO_JWT_*`) are configured; see the file header.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): engine internals, split prices,
+  performance, storage keys, site guard, messaging, currencies, CI
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): setup, tests, adding shops
+- [docs/RELEASING.md](docs/RELEASING.md): version, tag, store publishing

@@ -1,16 +1,20 @@
-import { PricePatterns } from '../pricePatterns';
+import { PricePatterns } from '../../src/pricing/pricePatterns';
 
 function fix(text: string): string {
   const matches = PricePatterns.findPrices(text);
   let out = text;
+
   for (const m of [...matches].reverse()) {
     const rounded = PricePatterns.roundUpPrice(m.value);
+
     if (rounded === m.value) {
       continue;
     }
+
     out =
       out.slice(0, m.startIndex) + PricePatterns.formatPrice(rounded, m) + out.slice(m.endIndex);
   }
+
   return out;
 }
 
@@ -45,6 +49,7 @@ describe('detection', () => {
     ['1.299.000 IDR', 1299000, 'IDR'],
   ])('%s → %s %s', (text, value, currency) => {
     const m = PricePatterns.findPrices(text);
+
     expect(m).toHaveLength(1);
     expect(m[0].value).toBe(value);
     expect(m[0].currency).toBe(currency);
@@ -192,6 +197,7 @@ describe('Swiss/Liechtenstein franc: apostrophe thousands separator', () => {
     ["CHF 12'345'678.90", 12345678.9, 'CHF'],
   ])('%s → %s %s', (text, value, currency) => {
     const m = PricePatterns.findPrices(text);
+
     expect(m).toHaveLength(1);
     expect(m[0].value).toBe(value);
     expect(m[0].currency).toBe(currency);
@@ -217,6 +223,7 @@ describe('Indian numbering (lakh/crore): irregular 2-digit groups', () => {
     '%s → %s %s (regression: used to truncate at the first 2-digit group)',
     (text, value, currency) => {
       const m = PricePatterns.findPrices(text);
+
       expect(m).toHaveLength(1);
       expect(m[0].value).toBe(value);
       expect(m[0].currency).toBe(currency);
@@ -249,6 +256,7 @@ describe('adversarial input safety', () => {
     const start = performance.now();
     const matches = PricePatterns.findPrices(text);
     const elapsed = performance.now() - start;
+
     expect(elapsed).toBeLessThan(1000);
     expect(matches.length).toBeGreaterThanOrEqual(0);
   });
@@ -256,6 +264,7 @@ describe('adversarial input safety', () => {
   test('a long line with no currency marker at all is skipped instantly (mayContainPrice pre-check)', () => {
     const text = '1,234,567,890,123,456,789 '.repeat(2000);
     const start = performance.now();
+
     expect(PricePatterns.findPrices(text)).toEqual([]);
     expect(performance.now() - start).toBeLessThan(200);
   });
@@ -281,6 +290,7 @@ describe('PricePatterns.roundToStep: invalid inputs are inert', () => {
 
   test('a very large price with a tiny fractional step still terminates and returns a finite number', () => {
     const result = PricePatterns.roundToStep(1e15, 0.01);
+
     expect(Number.isFinite(result)).toBe(true);
   });
 });

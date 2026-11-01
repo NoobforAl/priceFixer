@@ -74,20 +74,11 @@ order IDs, ratings, "ships in 15 days" and "save 25%" stay as they are.
 
 ## Install
 
-### From source
-
-```bash
-npm install
-npm run build:all      # dist/ (Chrome) and dist-firefox/ (Firefox)
-npm run package        # also zips both as price-fixer-*.zip
-```
-
-- **Chrome**: `chrome://extensions` → Developer mode → Load unpacked → `dist/`
-- **Firefox**: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on →
-  `dist-firefox/manifest.json`
-
-Firefox MV3 does not grant site access automatically. If the popup says the
-extension is not active on a page, click **Enable on this site**.
+- **Firefox**:
+  [Price Fixer on Firefox Add-ons](https://addons.mozilla.org/firefox/addon/price-fixer/)
+- **Chrome / from source**: download the zip from the
+  [latest release](https://github.com/NoobforAl/priceFixer/releases/latest), or
+  build it yourself. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Using it
 
@@ -100,10 +91,11 @@ extension is not active on a page, click **Enable on this site**.
 - Light and dark themes: follows your system by default; the sun/moon button in
   the popup or the Theme control in settings overrides it.
 - **Security** (in the popup):
-  - _Pause on payment pages_ (on by default) — checkout pages, card forms and
-    payment gateways (PayPal, Stripe, Klarna, Shaparak, …) are never changed, so
-    the amount you are about to pay is always shown exactly as the site states
-    it.
+  - _Pause on payment & finance pages_ (on by default) — checkout and invoice
+    pages, card forms, payment gateways (PayPal, Stripe, Klarna, Shaparak, …),
+    banks, brokers, crypto exchanges, accounting and tax sites are never
+    changed, so an amount you pay or trade at is always shown exactly as the
+    site states it.
   - _Blocked sites_ — **Block this site** keeps Price Fixer off the current site
     (and its subdomains) permanently; you can also type any domain to add it,
     and remove entries from the list.
@@ -117,64 +109,12 @@ extension is not active on a page, click **Enable on this site**.
   Rules are stored in sync storage and applied to open tabs immediately; invalid
   entries are listed under the form.
 
-## Development
+## Contributing
 
-```bash
-npm run dev            # watch build (Chrome)
-npm run dev:firefox    # watch build (Firefox)
-npm run dev:test       # build + serve the test page at http://localhost:3456
-npm test               # Jest (ts-jest + jsdom)
-npm run validate       # type-check + lint + format check + tests
-```
-
-To try the real extension in Firefox with hot reload:
-
-```bash
-node scripts/dev-server.js &
-npx web-ext run --source-dir dist-firefox --start-url http://localhost:3456/
-```
-
-`test-page.html` covers every supported format plus a "must not change" section;
-`src/__tests__/` has 119 unit tests for detection, rounding, formatting, the DOM
-engine (highlight/replace/restore/split prices/dynamic content) and custom
-rules.
-
-### Project layout
-
-```
-src/
-├── content.ts           # content-script bootstrap
-├── priceFixerContent.ts # page engine: scan, highlight/replace, restore, rules
-├── pricePatterns.ts     # detection, charm rules, format-preserving output
-├── regex-patterns.ts    # currency patterns (regex library, named groups)
-├── customRules.ts       # user rules (selectors / regexes) from storage
-├── site-patterns.ts     # price selectors for big shops (scanned first)
-├── shopping-sites.ts    # known shop domains (popup badge)
-├── background.ts        # keyboard shortcut, inject into open tabs on install
-└── __tests__/
-popup.html / popup.js    # toolbar popup
-options.html / options.js # full-page settings (options_ui, opens in a tab)
-ui-common.js / ui.css    # helpers, theme and styles shared by both pages
-icons/icon.svg           # source of all icon sizes
-scripts/                 # dev server, packaging
-test-page.html           # manual test page
-```
-
-## Releasing
-
-Bump `version` in `package.json`, `manifest.json` and `manifest.firefox.json`,
-then push a tag:
-
-```bash
-git tag v1.1.0 && git push origin v1.1.0
-```
-
-The release workflow validates, builds both packages, attaches them to a GitHub
-release and — when the store credentials are set as repository secrets —
-publishes to the Chrome Web Store (`CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`,
-`CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`) and Firefox Add-ons
-(`AMO_JWT_ISSUER`, `AMO_JWT_SECRET`). Without the secrets the store jobs skip
-themselves.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): build, test, load the extension,
+  add a shop or protected site
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the engine works
+- [docs/RELEASING.md](docs/RELEASING.md): versioning and store publishing
 
 ## Roadmap
 

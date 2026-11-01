@@ -9,7 +9,7 @@
  * Node's heap after each round, to show whether memory is bounded by what's
  * currently on the page or keeps growing with everything ever touched.
  */
-import { PriceFixerContent } from '../src/priceFixerContent';
+import { PriceFixerContent } from '../../src/content/priceFixerContent';
 import { card, tick } from './syntheticPage';
 
 type Internals = {
@@ -34,6 +34,7 @@ function heapMB(): number {
   if (typeof nodeGlobal.gc === 'function') {
     nodeGlobal.gc();
   }
+
   return nodeGlobal.process.memoryUsage().heapUsed / 1024 / 1024;
 }
 
@@ -47,6 +48,7 @@ test('leak check: recycled DOM (add N, remove N) over many rounds', async () => 
 
   document.body.innerHTML = '<main></main>';
   const instance = new PriceFixerContent();
+
   await settle(instance);
 
   const main = document.querySelector('main')!;
@@ -65,9 +67,11 @@ test('leak check: recycled DOM (add N, remove N) over many rounds', async () => 
 
     for (let i = 0; i < BATCH; i++) {
       const div = document.createElement('div');
+
       div.innerHTML = card(r * BATCH + i);
       main.appendChild(div.firstElementChild!);
     }
+
     await settle(instance);
 
     // A virtualized list recycles off-screen items: keep only the newest
@@ -75,10 +79,12 @@ test('leak check: recycled DOM (add N, remove N) over many rounds', async () => 
     while (main.children.length > BATCH) {
       main.removeChild(main.firstElementChild!);
     }
+
     await tick();
 
     const roundMs = performance.now() - t0;
     const internals = instance as unknown as Internals;
+
     samples.push({
       round: r,
       heapMB: heapMB(),
@@ -89,15 +95,14 @@ test('leak check: recycled DOM (add N, remove N) over many rounds', async () => 
   }
 
   console.log(
-    'round  heapMB  records  priceChanges  roundMs\n' +
-      samples
-        .map(
-          s =>
-            `${String(s.round).padStart(5)}  ${s.heapMB.toFixed(1).padStart(6)}  ` +
-            `${String(s.records).padStart(7)}  ${String(s.priceChanges).padStart(12)}  ` +
-            `${s.roundMs.toFixed(0).padStart(7)}`
-        )
-        .join('\n')
+    `round  heapMB  records  priceChanges  roundMs\n${samples
+      .map(
+        s =>
+          `${String(s.round).padStart(5)}  ${s.heapMB.toFixed(1).padStart(6)}  ` +
+          `${String(s.records).padStart(7)}  ${String(s.priceChanges).padStart(12)}  ` +
+          `${s.roundMs.toFixed(0).padStart(7)}`
+      )
+      .join('\n')}`
   );
 
   // Skip the first couple of rounds (JIT/warm-up); compare the trend across

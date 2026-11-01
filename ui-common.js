@@ -13,6 +13,7 @@ function normalizeDomain(input) {
   let value = String(input || '')
     .trim()
     .toLowerCase();
+
   if (/^[a-z]+:\/\//.test(value)) {
     try {
       value = new URL(value).hostname;
@@ -20,10 +21,12 @@ function normalizeDomain(input) {
       return '';
     }
   }
+
   value = value
     .split(/[/?#:]/)[0]
     .replace(/^www\./, '')
     .replace(/\.+$/, '');
+
   return /^[a-z0-9.-]+$/.test(value) ? value : '';
 }
 
@@ -43,13 +46,16 @@ function effectiveTheme(pref) {
   if (pref === 'light' || pref === 'dark') {
     return pref;
   }
+
   const media = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+
   return media && media.matches ? 'dark' : 'light';
 }
 
 function applyTheme(value) {
   const pref = themePreference(value);
   const root = document.documentElement;
+
   if (effectiveTheme(pref) !== effectiveTheme(root.dataset.theme)) {
     // Swap every colour at once instead of fading each control separately
     root.classList.add('theme-switching');
@@ -57,16 +63,19 @@ function applyTheme(value) {
       requestAnimationFrame(() => root.classList.remove('theme-switching'))
     );
   }
+
   if (pref === 'system') {
     delete root.dataset.theme;
   } else {
     root.dataset.theme = pref;
   }
+
   try {
     localStorage.setItem(THEME_CACHE_KEY, pref);
   } catch {
     // localStorage unavailable
   }
+
   document.dispatchEvent(
     new CustomEvent('pf-theme', { detail: { pref, effective: effectiveTheme(pref) } })
   );
@@ -78,6 +87,7 @@ function applyTheme(value) {
   } catch {
     // localStorage unavailable
   }
+
   try {
     api.storage.sync.get(['theme']).then(
       result => applyTheme(result.theme),

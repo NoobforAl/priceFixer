@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Price Fixer known shops",
+  "description": "Known shopping sites: the popup badge name and optional price selectors scanned before the rest of the page. The first matching shop wins. Loaded by src/sites/shops.ts.",
+  "type": "object",
+  "required": ["shops"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "shops": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/shop" }
+    }
+  },
+  "definitions": {
+    "shop": {
+      "type": "object",
+      "required": ["name", "category", "domains"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Shown in the popup badge.",
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "marketplace",
+            "department-store",
+            "fashion",
+            "electronics",
+            "home",
+            "grocery",
+            "travel",
+            "specialty",
+            "digital",
+            "price-comparison",
+            "platform"
+          ]
+        },
+        "domains": {
+          "description": "\"shop.com\" matches shop.com and its subdomains. \"shop.*\" matches the shop under any country suffix (shop.de, shop.co.uk, smile.shop.com).",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(([a-z0-9-]+\\.)+[a-z0-9-]+|[a-z0-9-]+\\.\\*)$"
+          }
+        },
+        "priceSelectors": {
+          "description": "CSS selectors for price elements on this shop. Scanned first; the full-page scan still runs afterwards.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "skipSelectors": {
+          "description": "Elements that look like prices but aren't (ratings, review counts). Price selectors inside them are ignored.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "pageIndicators": {
+          "description": "Selectors that identify the shop on any domain (e.g. a Shopify store on its own domain). Checked only when no shop matches by domain.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

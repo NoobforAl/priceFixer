@@ -31,14 +31,17 @@ export function normalizeRules(raw: unknown): CustomRules {
   const lines = (v: unknown): string[] =>
     Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean) : [];
   const selectors: Record<string, string[]> = {};
+
   if (r.excludeSelectors && typeof r.excludeSelectors === 'object') {
     for (const [domain, list] of Object.entries(r.excludeSelectors)) {
       const clean = lines(list);
+
       if (clean.length) {
         selectors[domain] = clean;
       }
     }
   }
+
   return {
     excludeSelectors: selectors,
     excludePatterns: lines(r.excludePatterns),
@@ -51,6 +54,7 @@ function compile(source: string, flags: string, errors: string[]): RegExp | null
     return new RegExp(source, flags);
   } catch (e) {
     errors.push(`${source}: ${(e as Error).message}`);
+
     return null;
   }
 }
@@ -58,9 +62,11 @@ function compile(source: string, flags: string, errors: string[]): RegExp | null
 function validSelector(selector: string, errors: string[]): boolean {
   try {
     document.querySelector(selector);
+
     return true;
   } catch {
     errors.push(`${selector}: invalid selector`);
+
     return false;
   }
 }
@@ -73,12 +79,15 @@ export function compileRules(rules: CustomRules, domain: string): CompiledRules 
   ].filter(s => validSelector(s, errors));
 
   const extraPatterns: RegExp[] = [];
+
   for (const source of rules.extraPatterns) {
     if (!source.includes('(?<amount>')) {
       errors.push(`${source}: needs an (?<amount>…) group`);
       continue;
     }
+
     const re = compile(source, 'giu', errors);
+
     if (re) {
       extraPatterns.push(re);
     }

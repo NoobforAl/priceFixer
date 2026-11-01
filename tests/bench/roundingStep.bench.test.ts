@@ -7,7 +7,7 @@
  * This compares the default charm-only rule against a custom step on the
  * same synthetic page, to catch any regression from the extra DOM writes.
  */
-import { PriceFixerContent } from '../src/priceFixerContent';
+import { PriceFixerContent } from '../../src/content/priceFixerContent';
 import { CARDS, card, buildPage, tick, fmt } from './syntheticPage';
 
 const ROUNDS = 3;
@@ -40,6 +40,7 @@ async function run(roundingStep: number | null): Promise<RunResult> {
     document.body.innerHTML = html;
     const t0 = performance.now();
     const instance = new PriceFixerContent();
+
     // No storage in jsdom, so this beats the constructor's own async init
     // (see loadSettings: it returns immediately when there is no chrome API).
     (instance as unknown as Internals).roundingStep = roundingStep;
@@ -49,11 +50,14 @@ async function run(roundingStep: number | null): Promise<RunResult> {
 
     const main = document.querySelector('main')!;
     const t1 = performance.now();
+
     for (let i = 0; i < 200; i++) {
       const div = document.createElement('div');
+
       div.innerHTML = card(CARDS + i);
       main.appendChild(div.firstElementChild!);
     }
+
     await settle(instance);
     mutation.push(performance.now() - t1);
 

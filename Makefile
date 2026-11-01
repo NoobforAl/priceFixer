@@ -1,34 +1,38 @@
-# Price Fixer - convenience wrappers around the npm scripts in package.json.
-# Run `make help` to list targets.
+# Price Fixer - every project task has a target here. Run `make help` to list
+# them. The targets wrap the npm scripts in package.json; use the targets.
 
 NPM ?= npm
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev dev-firefox dev-test dev-test-firefox \
+.PHONY: help install dev dev-firefox dev-test dev-test-firefox firefox \
         build build-firefox build-all package \
-        test test-watch type-check lint format format-check fix validate clean
+        test test-watch bench type-check lint lint-fix lint-addon format format-check fix \
+        validate check version clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install dependencies
-	$(NPM) install
+install: ## Install dependencies (npm ci: exact lockfile versions)
+	$(NPM) ci
 
 # --- Development -----------------------------------------------------------
 
-dev: ## Webpack watch mode (Chrome)
+dev: ## Webpack watch mode (Chrome) -> dist/
 	$(NPM) run dev
 
-dev-firefox: ## Webpack watch mode (Firefox)
+dev-firefox: ## Webpack watch mode (Firefox) -> dist-firefox/
 	$(NPM) run dev:firefox
 
-dev-test: ## Build Chrome + serve test page at localhost:3456
+dev-test: ## Build Chrome + serve the test page at localhost:3456
 	$(NPM) run dev:test
 
-dev-test-firefox: ## Build Firefox + serve test page at localhost:3456
+dev-test-firefox: ## Build Firefox + serve the test page at localhost:3456
 	$(NPM) run dev:test:firefox
+
+firefox: build-firefox ## Build Firefox, then open Firefox with the extension on the test page
+	$(NPM) run firefox
 
 # --- Build -----------------------------------------------------------------
 
@@ -41,35 +45,50 @@ build-firefox: ## Production build (Firefox) -> dist-firefox/
 build-all: ## Build both Chrome + Firefox
 	$(NPM) run build:all
 
-package: ## Build both targets and zip them
+package: ## Build both targets and zip them (price-fixer-{chrome,firefox}.zip)
 	$(NPM) run package
 
 # --- Quality ---------------------------------------------------------------
 
-test: ## Run Jest tests
+test: ## Run Jest unit tests
 	$(NPM) test
 
 test-watch: ## Run Jest in watch mode
 	$(NPM) run test:watch
 
-type-check: ## tsc --noEmit
+bench: ## Scan / mutation / rescan timings on a 3,000-card synthetic page
+	$(NPM) run bench
+
+type-check: ## TypeScript check (tsc --noEmit)
 	$(NPM) run type-check
 
-lint: ## Run ESLint
+lint: ## ESLint, fails on any warning
 	$(NPM) run lint
 
-format: ## Format code with Prettier
+lint-fix: ## Auto-fix ESLint issues (braces, blank lines, ...)
+	$(NPM) run lint:fix
+
+lint-addon: build-firefox ## Mozilla's add-on linter on the Firefox build (as AMO runs it)
+	$(NPM) run lint:addon
+
+format: ## Format everything: ESLint --fix (braces, blank lines) + Prettier
 	$(NPM) run format
 
 format-check: ## Check formatting without writing
 	$(NPM) run format:check
 
-fix: ## Auto-fix lint issues and format code
-	$(NPM) run lint:fix
-	$(NPM) run format
+fix: format ## Alias for format
 
-validate: ## Full CI check: type-check + lint + format-check + test
+validate: ## CI check: type-check + lint + format-check + test
 	$(NPM) run validate
+
+check: validate lint-addon build ## Everything before a commit: validate + add-on lint + both builds
+
+# --- Release ---------------------------------------------------------------
+
+version: ## Set the version everywhere: make version V=1.5.0
+	@test -n "$(V)" || (echo "Usage: make version V=1.5.0" && exit 1)
+	node scripts/bump-version.js $(V)
 
 # --- Housekeeping ----------------------------------------------------------
 

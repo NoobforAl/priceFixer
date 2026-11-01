@@ -1,12 +1,11 @@
+import { domainMatches, normalizeDomain } from '../../src/sites/domains';
 import {
   detectPaymentPage,
-  domainMatches,
   isBlockedSite,
   isPaymentHost,
   isPaymentUrl,
   normalizeBlockedSites,
-  normalizeDomain,
-} from '../siteGuard';
+} from '../../src/sites/siteGuard';
 
 describe('normalizeDomain', () => {
   it('strips scheme, www, path and case', () => {
@@ -44,6 +43,7 @@ describe('blocklist matching', () => {
 
   it('isBlockedSite checks every entry', () => {
     const list = ['bank.com', 'digikala.com'];
+
     expect(isBlockedSite('www.digikala.com', list)).toBe(true);
     expect(isBlockedSite('amazon.com', list)).toBe(false);
     expect(isBlockedSite('amazon.com', [])).toBe(false);

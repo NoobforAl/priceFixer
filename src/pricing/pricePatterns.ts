@@ -2,7 +2,7 @@
  * Price detection and rounding.
  */
 
-import { RegexPatterns, CurrencyDetection, PersianDigits } from './regex-patterns';
+import { RegexPatterns, CurrencyDetection, PersianDigits } from './regexPatterns';
 
 export interface PriceMatch {
   value: number;
@@ -37,6 +37,7 @@ export class PricePatterns {
       // 1.299,99 (European) or 1,299.99 (American)
       const lastDot = cleanStr.lastIndexOf('.');
       const lastComma = cleanStr.lastIndexOf(',');
+
       if (lastComma > lastDot) {
         cleanStr = cleanStr.replace(/\./g, '').replace(',', '.');
       } else {
@@ -46,6 +47,7 @@ export class PricePatterns {
       const sep = cleanStr.includes('.') ? '.' : ',';
       const parts = cleanStr.split(sep);
       const allGroupsOfThree = parts.slice(1).every(p => p.length === 3);
+
       if (parts.length > 2 || (parts.length === 2 && allGroupsOfThree)) {
         // 1.299 / 1,299 / 12.345.678 → thousand separators
         cleanStr = parts.join('');
@@ -65,10 +67,12 @@ export class PricePatterns {
   private static significantWhole(price: number): { whole: number; scale: number } {
     let whole = Math.round(price);
     let scale = 1;
+
     while (whole >= 1000 && whole % 1000 === 0) {
       whole /= 1000;
       scale *= 1000;
     }
+
     return { whole, scale };
   }
 
@@ -82,11 +86,15 @@ export class PricePatterns {
     if (price <= 0) {
       return false;
     }
+
     const cents = Math.round((price % 1) * 100);
+
     if (cents !== 0) {
       return true;
     }
+
     const { whole } = this.significantWhole(price);
+
     return whole >= 10 && whole % 10 === 9;
   }
 
@@ -100,11 +108,15 @@ export class PricePatterns {
     if (!this.isCharmPrice(price)) {
       return price;
     }
+
     const cents = Math.round((price % 1) * 100);
+
     if (cents !== 0) {
       return Math.ceil(price - 1e-9);
     }
+
     const { whole, scale } = this.significantWhole(price);
+
     return (whole + 1) * scale;
   }
 
@@ -129,10 +141,12 @@ export class PricePatterns {
     if (!(step > 0) || !(price > 0) || !Number.isFinite(step) || !Number.isFinite(price)) {
       return price;
     }
+
     // Snap the quotient to a handful of decimals first so binary-float noise
     // (10.9 / 0.1 === 108.99999999999999) can't shift which integer it floors to.
     const quotient = Math.round((price / step) * 1e6) / 1e6;
     const next = Math.floor(quotient) + 1;
+
     return Math.round(next * step * 1e6) / 1e6;
   }
 
@@ -141,15 +155,19 @@ export class PricePatterns {
    */
   private static detectCurrency(text: string): string {
     const stripped = text.replace(/[\d۰-۹٠-٩.,٬٫\s]/g, '');
+
     for (const [symbol, currency] of Object.entries(CurrencyDetection.symbols)) {
       if (stripped.includes(symbol)) {
         return currency;
       }
     }
+
     const codeMatch = text.match(CurrencyDetection.codes);
+
     if (codeMatch?.groups?.code) {
       return codeMatch.groups.code.toUpperCase();
     }
+
     return 'UNKNOWN';
   }
 
@@ -164,8 +182,10 @@ export class PricePatterns {
 
     while ((match = pattern.exec(text)) !== null) {
       const amount = match.groups?.amount;
+
       if (amount) {
         const value = this.parseNumber(amount);
+
         if (value > 0) {
           matches.push({
             value,
@@ -198,10 +218,13 @@ export class PricePatterns {
 
   public static iconAmountMatch(text: string): PriceMatch | null {
     const m = text.match(this.ICON_AMOUNT_ANY);
+
     if (!m) {
       return null;
     }
+
     const start = text.indexOf(m[1]);
+
     return {
       value: this.parseNumber(m[1]),
       currency: 'ICON',
@@ -218,6 +241,7 @@ export class PricePatterns {
       CurrencyDetection.marker.test(text) ||
       this.extraPatterns.some(p => {
         p.lastIndex = 0;
+
         return p.test(text);
       })
     );
@@ -228,6 +252,7 @@ export class PricePatterns {
    */
   public static findPrices(text: string): PriceMatch[] {
     const cached = this.processedCache.get(text);
+
     if (cached) {
       return cached;
     }
@@ -247,6 +272,7 @@ export class PricePatterns {
     for (const [name, pattern] of patterns) {
       allMatches.push(...this.applyPattern(text, pattern, name));
     }
+
     this.extraPatterns.forEach((pattern, i) => {
       allMatches.push(...this.applyPattern(text, pattern, `custom_${i}`));
     });
@@ -256,6 +282,7 @@ export class PricePatterns {
     this.processedCache.set(text, finalMatches);
     if (this.processedCache.size > 1000) {
       const firstKey = this.processedCache.keys().next().value;
+
       if (firstKey !== undefined) {
         this.processedCache.delete(firstKey);
       }
@@ -276,12 +303,14 @@ export class PricePatterns {
 
     const result: PriceMatch[] = [];
     let lastEnd = -1;
+
     for (const match of matches) {
       if (match.startIndex >= lastEnd) {
         result.push(match);
         lastEnd = match.endIndex;
       }
     }
+
     return result;
   }
 
@@ -302,6 +331,7 @@ export class PricePatterns {
     const spaceSep = ascii.match(/[ \u00a0\u202f]/)?.[0];
     // Swiss/French apostrophe thousands separator (' or ’)
     const apostropheSep = ascii.match(/['’]/)?.[0];
+
     if (spaceSep) {
       groupSep = spaceSep;
     } else if (apostropheSep) {
@@ -309,19 +339,24 @@ export class PricePatterns {
     } else if (ascii.includes('٬')) {
       groupSep = '٬';
     }
+
     if (ascii.includes('٫')) {
       decimalSep = '٫';
     }
+
     const hasDot = ascii.includes('.');
     const hasComma = ascii.includes(',');
+
     if (hasDot && hasComma) {
       const dotIsDecimal = ascii.lastIndexOf('.') > ascii.lastIndexOf(',');
+
       decimalSep = dotIsDecimal ? '.' : ',';
       groupSep = dotIsDecimal ? ',' : '.';
     } else if (hasDot || hasComma) {
       const sep = hasDot ? '.' : ',';
       const parts = ascii.split(sep);
       const isGroup = parts.length > 2 || parts[1]?.length === 3;
+
       if (isGroup) {
         groupSep = sep;
         decimalSep = sep === '.' ? ',' : '.';
@@ -329,6 +364,7 @@ export class PricePatterns {
         decimalSep = sep;
       }
     }
+
     if (!groupSep) {
       groupSep = decimalSep === ',' ? '.' : /[۰-۹]/.test(run) ? '٬' : ',';
     }
@@ -340,6 +376,7 @@ export class PricePatterns {
     const originalHadGroups = /[.,٬'’\u0020\u00a0\u202f][\d۰-۹٠-٩]{3}(?![\d۰-۹٠-٩])/.test(ascii);
     const originalIntDigits = ascii.split(/[.,٫]/)[0].replace(/\D/g, '').length;
     const ungroupedStyle = !originalHadGroups && originalIntDigits > 3;
+
     if (intPart.length > 3 && !ungroupedStyle) {
       // Indian numbering (lakh/crore) groups in 2s left of the last 3 digits
       // ("1,23,456"), not 3s throughout like everywhere else ("1,234,567").
@@ -355,11 +392,14 @@ export class PricePatterns {
         originalGroups.length >= 3 &&
         originalGroups[originalGroups.length - 1].length === 3 &&
         originalGroups.slice(1, -1).every(g => g.length === 2);
+
       if (isIndianGrouping) {
         let rest = intPart.slice(0, -3);
+
         formatted = intPart.slice(-3);
         while (rest.length > 0) {
           const chunk = rest.length > 2 ? rest.slice(-2) : rest;
+
           formatted = chunk + groupSep + formatted;
           rest = rest.slice(0, -chunk.length);
         }
@@ -367,9 +407,11 @@ export class PricePatterns {
         formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
       }
     }
+
     if (decPart) {
       formatted += decimalSep + decPart;
     }
+
     return PersianDigits.matchScript(formatted, run);
   }
 
@@ -380,9 +422,11 @@ export class PricePatterns {
   public static formatPrice(roundedValue: number, originalMatch: PriceMatch): string {
     const { originalText } = originalMatch;
     const formatted = this.formatNumber(roundedValue, originalText);
+
     if (this.NUMERIC_RUN.test(originalText)) {
       return originalText.replace(this.NUMERIC_RUN, formatted);
     }
+
     return formatted;
   }
 

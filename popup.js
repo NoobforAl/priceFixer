@@ -21,11 +21,13 @@ class PopupController {
     } catch {
       this.showNotice('Could not read the current tab.');
     }
+
     this.loadStats();
   }
 
   bindEvents() {
     const on = (id, handler) => document.getElementById(id).addEventListener('click', handler);
+
     on('globalSwitch', () =>
       this.setGlobalEnabled(!(this.status ? this.status.globalEnabled : true))
     );
@@ -65,6 +67,7 @@ class PopupController {
   toggleTheme() {
     const current = effectiveTheme(document.documentElement.dataset.theme);
     const next = current === 'dark' ? 'light' : 'dark';
+
     applyTheme(next);
     try {
       api.storage.sync.set({ theme: next });
@@ -75,11 +78,13 @@ class PopupController {
 
   renderTheme({ effective }) {
     const dark = effective === 'dark';
+
     // SVG elements have no `hidden` property; toggle the attribute
     document.querySelector('#themeBtn .icon-sun').toggleAttribute('hidden', !dark);
     document.querySelector('#themeBtn .icon-moon').toggleAttribute('hidden', dark);
     const label = dark ? 'Switch to light theme' : 'Switch to dark theme';
     const button = document.getElementById('themeBtn');
+
     button.title = label;
     button.setAttribute('aria-label', label);
   }
@@ -100,6 +105,7 @@ class PopupController {
     const toggle = document.getElementById('securityToggle');
     const panel = document.getElementById('securityPanel');
     const open = panel.hidden;
+
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     if (open) {
@@ -115,8 +121,10 @@ class PopupController {
     if (this.status && Array.isArray(this.status.blockedSites)) {
       return this.status.blockedSites;
     }
+
     try {
       const result = await api.storage.sync.get(['blockedSites']);
+
       return Array.isArray(result.blockedSites) ? result.blockedSites : [];
     } catch {
       return [];
@@ -129,6 +137,7 @@ class PopupController {
       // Content script unreachable: read the switch state from storage
       try {
         const result = await api.storage.sync.get(['pauseOnPayment']);
+
         this.setSwitch('paymentSwitch', result.pauseOnPayment !== false);
       } catch {
         // keep default
@@ -138,6 +147,7 @@ class PopupController {
 
   async setPauseOnPayment(enabled) {
     const response = await this.send({ action: 'setPauseOnPayment', enabled });
+
     if (!response) {
       api.storage.sync.set({ pauseOnPayment: enabled });
       this.setSwitch('paymentSwitch', enabled);
@@ -147,10 +157,13 @@ class PopupController {
   async addBlockedFromInput() {
     const input = document.getElementById('blockInput');
     const domain = this.normalizeDomain(input.value);
+
     if (!domain) {
       input.focus();
+
       return;
     }
+
     input.value = '';
     await this.setBlocked(domain, true);
   }
@@ -161,36 +174,47 @@ class PopupController {
     if (!domain) {
       return;
     }
+
     const response = await this.send({ action: 'setBlocked', domain, blocked });
+
     if (response) {
       this.renderBlockedSites(response.blockedSites || []);
+
       return;
     }
+
     // Content script unreachable: edit storage directly
     const list = (await this.readBlockedSites()).filter(d => d !== domain);
+
     if (blocked) {
       list.push(domain);
     }
+
     try {
       await api.storage.sync.set({ blockedSites: list });
     } catch {
       // Storage not available
     }
+
     this.renderBlockedSites(list);
   }
 
   renderBlockedSites(list) {
     const container = document.getElementById('blockList');
     const empty = document.getElementById('blockEmpty');
+
     container.textContent = '';
     empty.hidden = list.length > 0;
     for (const domain of [...list].sort()) {
       const item = document.createElement('div');
+
       item.className = 'list-item';
       const name = document.createElement('span');
+
       name.className = 'domain';
       name.textContent = domain;
       const remove = document.createElement('button');
+
       remove.className = 'link-btn';
       remove.textContent = 'Remove';
       remove.setAttribute('aria-label', `Unblock ${domain}`);
@@ -198,9 +222,11 @@ class PopupController {
       item.append(name, remove);
       container.appendChild(item);
     }
+
     const current = this.domain();
     const blockBtn = document.getElementById('blockSiteBtn');
     const isBlocked = list.some(d => current === d || current.endsWith(`.${d}`));
+
     blockBtn.textContent = isBlocked ? 'Unblock this site' : 'Block this site';
     blockBtn.disabled = !current;
   }
@@ -219,6 +245,7 @@ class PopupController {
     const toggle = document.getElementById('rulesToggle');
     const panel = document.getElementById('rulesPanel');
     const open = panel.hidden;
+
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     if (open) {
@@ -228,11 +255,13 @@ class PopupController {
 
   async loadRules() {
     const domain = this.domain();
+
     document.getElementById('rulesDomain').textContent = domain || 'this site';
     try {
       const result = await api.storage.sync.get(['customRules']);
       const rules = result.customRules || {};
       const selectors = rules.excludeSelectors || {};
+
       document.getElementById('ruleSelectors').value = (selectors[domain] || []).join('\n');
       document.getElementById('ruleSelectorsAll').value = (selectors['*'] || []).join('\n');
       document.getElementById('ruleExclude').value = (rules.excludePatterns || []).join('\n');
@@ -240,6 +269,7 @@ class PopupController {
     } catch {
       // Storage not available
     }
+
     this.renderRuleErrors();
   }
 
@@ -252,29 +282,36 @@ class PopupController {
         .filter(Boolean);
     const domain = this.domain();
     let rules = {};
+
     try {
       rules = (await api.storage.sync.get(['customRules'])).customRules || {};
     } catch {
       // fall through with empty rules
     }
+
     const excludeSelectors = { ...(rules.excludeSelectors || {}) };
     const siteLines = lines('ruleSelectors');
+
     if (siteLines.length) {
       excludeSelectors[domain] = siteLines;
     } else {
       delete excludeSelectors[domain];
     }
+
     const allLines = lines('ruleSelectorsAll');
+
     if (allLines.length) {
       excludeSelectors['*'] = allLines;
     } else {
       delete excludeSelectors['*'];
     }
+
     const customRules = {
       excludeSelectors,
       excludePatterns: lines('ruleExclude'),
       extraPatterns: lines('ruleExtra'),
     };
+
     await api.storage.sync.set({ customRules });
     // The content script re-applies on storage change; fetch its verdict
     await new Promise(r => setTimeout(r, 250));
@@ -284,6 +321,7 @@ class PopupController {
 
   renderRuleErrors() {
     const errors = (this.status && this.status.ruleErrors) || [];
+
     document.getElementById('rulesErrors').textContent = errors.length
       ? `Ignored (invalid):\n${errors.join('\n')}`
       : '';
@@ -293,9 +331,11 @@ class PopupController {
 
   async getCurrentTab() {
     const tabs = await api.tabs.query({ active: true, currentWindow: true });
+
     if (!tabs || !tabs[0]) {
       throw new Error('No active tab');
     }
+
     return tabs[0];
   }
 
@@ -303,6 +343,7 @@ class PopupController {
     if (isPromiseApi) {
       return api.tabs.sendMessage(this.tab.id, message);
     }
+
     return new Promise((resolve, reject) => {
       chrome.tabs.sendMessage(this.tab.id, message, response => {
         if (chrome.runtime.lastError) {
@@ -319,18 +360,22 @@ class PopupController {
     if (!this.tab) {
       return null;
     }
+
     this.setLoading(true);
     try {
       const response = await this.sendMessageToTab(message);
+
       if (response && typeof response.enabled === 'boolean') {
         this.status = response;
         this.reachable = true;
         this.render();
       }
+
       return response;
     } catch {
       this.reachable = false;
       this.showUnreachable();
+
       return null;
     } finally {
       this.setLoading(false);
@@ -345,6 +390,7 @@ class PopupController {
     try {
       const result = await api.storage.local.get(['stats']);
       const stats = result.stats || {};
+
       document.getElementById('totalRounded').textContent = stats.totalPricesRounded || 0;
       document.getElementById('hiddenAmount').textContent = (stats.totalHiddenAmount || 0).toFixed(
         2
@@ -358,6 +404,7 @@ class PopupController {
 
   async setGlobalEnabled(enabled) {
     const response = await this.send({ action: 'setGlobalEnabled', enabled });
+
     if (!response) {
       // Content script unreachable: still persist so other tabs pick it up
       api.storage.sync.set({ globalEnabled: enabled });
@@ -370,6 +417,7 @@ class PopupController {
 
   async setMode(mode) {
     const response = await this.send({ action: 'setMode', mode });
+
     if (!response) {
       api.storage.sync.set({ displayMode: mode });
     }
@@ -384,20 +432,26 @@ class PopupController {
     if (!this.tab || !this.tab.url) {
       return;
     }
+
     let origin;
+
     try {
       origin = `${new URL(this.tab.url).origin}/*`;
     } catch {
       return;
     }
+
     try {
       if (api.permissions && api.permissions.request) {
         const granted = await api.permissions.request({ origins: [origin] });
+
         if (!granted) {
           this.showNotice('Permission for this site was not granted.');
+
           return;
         }
       }
+
       await api.scripting.executeScript({ target: { tabId: this.tab.id }, files: ['content.js'] });
       await new Promise(r => setTimeout(r, 150));
       this.hideNotice();
@@ -412,11 +466,13 @@ class PopupController {
   showUrl() {
     const el = document.getElementById('currentUrl');
     let host = 'Unknown site';
+
     try {
       host = new URL(this.tab.url).hostname.replace(/^www\./, '');
     } catch {
       // chrome://, about:, file: etc.
     }
+
     el.firstChild.textContent = host;
   }
 
@@ -425,23 +481,27 @@ class PopupController {
     document.getElementById('priceCount').textContent = '–';
     let text = 'Price Fixer is not active on this page.';
     let action = null;
+
     if (this.tab && /^https?:/.test(this.tab.url || '')) {
       text += ' It only runs on pages loaded after it was installed, or on sites you have allowed.';
       action = 'Enable on this site';
     } else {
       text += ' It works on regular http(s) web pages only.';
     }
+
     this.showNotice(text, action);
   }
 
   showNotice(text, actionLabel) {
     const notice = document.getElementById('notice');
     const button = document.getElementById('noticeAction');
+
     document.getElementById('noticeText').textContent = text;
     button.hidden = !actionLabel;
     if (actionLabel) {
       button.textContent = actionLabel;
     }
+
     notice.classList.add('visible');
   }
 
@@ -451,9 +511,11 @@ class PopupController {
 
   render() {
     const s = this.status;
+
     if (!s) {
       return;
     }
+
     this.hideNotice();
 
     this.setSwitch('globalSwitch', s.globalEnabled);
@@ -463,6 +525,7 @@ class PopupController {
 
     this.setSwitch('siteSwitch', s.siteEnabled);
     const siteSub = document.getElementById('siteSub');
+
     siteSub.classList.toggle('blocked', !!s.siteBlocked);
     siteSub.classList.toggle('warn', !s.siteBlocked && !!(s.pauseOnPayment && s.paymentPage));
     if (s.siteBlocked) {
@@ -480,6 +543,7 @@ class PopupController {
     }
 
     const badge = document.getElementById('shopBadge');
+
     if (s.isShoppingSite) {
       badge.textContent = s.shoppingSiteName || 'Shop';
       badge.style.display = 'inline-block';
@@ -490,6 +554,7 @@ class PopupController {
     document.getElementById('priceCount').textContent = s.processedCount || 0;
 
     const highlight = s.displayMode !== 'replace';
+
     this.setRadio('modeHighlight', highlight);
     this.setRadio('modeReplace', !highlight);
     document.getElementById('modeHint').textContent = highlight
@@ -501,9 +566,11 @@ class PopupController {
     this.renderChanges(s.changes || []);
 
     this.setSwitch('paymentSwitch', s.pauseOnPayment !== false);
+    const reason = s.paymentReason || 'payment page';
+
     document.getElementById('paymentSub').textContent = s.paymentPage
-      ? `This page looks like a ${s.paymentReason || 'payment page'}`
-      : 'Checkout, card forms and payment gateways are never changed';
+      ? `This page looks like ${/^[aeiou]/i.test(reason) ? 'an' : 'a'} ${reason}`
+      : 'Checkout, invoices, payment gateways, banks, trading and tax sites are never changed';
     if (Array.isArray(s.blockedSites)) {
       this.renderBlockedSites(s.blockedSites);
     }
@@ -511,12 +578,14 @@ class PopupController {
 
   setSwitch(id, on) {
     const el = document.getElementById(id);
+
     el.classList.toggle('on', !!on);
     el.setAttribute('aria-checked', on ? 'true' : 'false');
   }
 
   setRadio(id, on) {
     const el = document.getElementById(id);
+
     el.classList.toggle('active', !!on);
     el.setAttribute('aria-checked', on ? 'true' : 'false');
   }
@@ -524,36 +593,46 @@ class PopupController {
   renderChanges(changes) {
     const section = document.getElementById('changesSection');
     const list = document.getElementById('changesList');
+
     list.textContent = '';
 
     if (changes.length === 0) {
       section.style.display = 'none';
+
       return;
     }
+
     section.style.display = 'block';
 
     // Collapse duplicates (the same price appears many times in a listing)
     const counts = new Map();
+
     for (const change of changes) {
       const key = `${change.original}→${change.rounded}`;
       const entry = counts.get(key) || { ...change, count: 0 };
+
       entry.count++;
       counts.set(key, entry);
     }
 
     for (const change of counts.values()) {
       const item = document.createElement('div');
+
       item.className = 'change-item';
       const original = document.createElement('span');
+
       original.className = 'original';
       original.textContent = change.original;
       const arrow = document.createElement('span');
+
       arrow.className = 'arrow';
       arrow.textContent = '→';
       const next = document.createElement('span');
+
       next.className = 'new';
       next.textContent = change.rounded;
       const diff = document.createElement('span');
+
       diff.className = 'diff';
       diff.textContent = `${change.count > 1 ? `×${change.count} · ` : ''}+${change.difference}`;
       item.append(original, arrow, next, diff);

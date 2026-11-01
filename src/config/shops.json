@@ -1,0 +1,1061 @@
+{
+  "$schema": "./schema/shops.schema.json",
+  "shops": [
+    {
+      "name": "Amazon",
+      "category": "marketplace",
+      "domains": ["amazon.*"],
+      "priceSelectors": [
+        ".a-price",
+        ".a-price-whole",
+        ".a-price-fraction",
+        ".a-offscreen",
+        "#priceblock_ourprice",
+        "#priceblock_dealprice",
+        "#priceblock_saleprice",
+        ".apexPriceToPay",
+        ".priceToPay",
+        ".a-color-price",
+        ".a-text-price",
+        "[data-a-color=\"price\"]",
+        ".sx-price-whole",
+        ".sx-price-fractional",
+        ".price-info-superscript",
+        ".a-price-range"
+      ],
+      "skipSelectors": [
+        ".a-star-rating",
+        ".a-icon-star",
+        ".a-section.a-spacing-none.a-text-center",
+        "[data-component-type=\"s-product-image\"]"
+      ]
+    },
+    {
+      "name": "eBay",
+      "category": "marketplace",
+      "domains": ["ebay.*"],
+      "priceSelectors": [
+        ".s-item__price",
+        ".x-price-primary",
+        ".x-price-approx",
+        ".x-bin-price__content",
+        "#prcIsum",
+        ".vi-price",
+        ".display-price",
+        "[itemprop=\"price\"]",
+        ".item-price",
+        ".s-item__detail--primary"
+      ],
+      "skipSelectors": [".s-item__hotness", ".s-item__watchCount", ".s-item__reviews", ".s-item__seller-info"]
+    },
+    {
+      "name": "Etsy",
+      "category": "marketplace",
+      "domains": ["etsy.*"],
+      "priceSelectors": [
+        ".currency-value",
+        ".wt-text-title-01",
+        ".search-listing-card__price",
+        "[data-buy-box-listing-id] .wt-text-title-01",
+        ".p-lg"
+      ],
+      "skipSelectors": [".wt-badge", ".wt-text-caption"]
+    },
+    {
+      "name": "AliExpress",
+      "category": "marketplace",
+      "domains": ["aliexpress.*"],
+      "priceSelectors": [
+        ".product-price-value",
+        ".uniform-banner-box-price",
+        "[class*=\"price\"]",
+        ".snow-price_SnowPrice__mainS"
+      ],
+      "skipSelectors": [".rating-star", ".product-reviewer"]
+    },
+    {
+      "name": "Alibaba",
+      "category": "marketplace",
+      "domains": ["alibaba.com"]
+    },
+    {
+      "name": "Wish",
+      "category": "marketplace",
+      "domains": ["wish.com"]
+    },
+    {
+      "name": "Temu",
+      "category": "marketplace",
+      "domains": ["temu.*"],
+      "priceSelectors": ["[class*=\"Price\"]", "[class*=\"price\"]", ".goods-price"]
+    },
+    {
+      "name": "Mercado Libre",
+      "category": "marketplace",
+      "domains": ["mercadolibre.*", "mercadolivre.com.br"]
+    },
+    {
+      "name": "Rakuten",
+      "category": "marketplace",
+      "domains": ["rakuten.co.jp"]
+    },
+    {
+      "name": "Flipkart",
+      "category": "marketplace",
+      "domains": ["flipkart.com"]
+    },
+    {
+      "name": "Walmart",
+      "category": "department-store",
+      "domains": ["walmart.*"],
+      "priceSelectors": [
+        "[data-automation-id=\"product-price\"]",
+        ".price-main",
+        ".price-group",
+        ".price-characteristic",
+        ".price-mantissa",
+        "[itemprop=\"price\"]",
+        ".inline-flex.flex-wrap",
+        ".f2",
+        ".lh-copy"
+      ],
+      "skipSelectors": ["[data-automation-id=\"product-ratings\"]", ".stars-container"]
+    },
+    {
+      "name": "Target",
+      "category": "department-store",
+      "domains": ["target.com"],
+      "priceSelectors": [
+        "[data-test=\"product-price\"]",
+        ".h-text-bs",
+        ".styles__CurrentPriceFontSize",
+        ".styles__StyledPromoPrice",
+        "[data-test=\"current-price\"]",
+        "[data-test=\"comparison-price\"]"
+      ],
+      "skipSelectors": ["[data-test=\"ratings\"]", "[data-test=\"reviewCount\"]"]
+    },
+    {
+      "name": "Costco",
+      "category": "department-store",
+      "domains": ["costco.*"],
+      "priceSelectors": [".price", ".your-price", "#pull-right-price"]
+    },
+    {
+      "name": "Best Buy",
+      "category": "department-store",
+      "domains": ["bestbuy.*"],
+      "priceSelectors": [
+        ".priceView-hero-price",
+        ".priceView-customer-price",
+        ".priceView-purchase-price",
+        "[data-testid=\"customer-price\"]",
+        ".pricing-price__regular-price",
+        ".pricing-price__sale-price"
+      ],
+      "skipSelectors": [".rating-reviews-count"]
+    },
+    {
+      "name": "The Home Depot",
+      "category": "department-store",
+      "domains": ["homedepot.com"]
+    },
+    {
+      "name": "Lowe's",
+      "category": "department-store",
+      "domains": ["lowes.com"]
+    },
+    {
+      "name": "Macy's",
+      "category": "department-store",
+      "domains": ["macys.com"]
+    },
+    {
+      "name": "Nordstrom",
+      "category": "department-store",
+      "domains": ["nordstrom.com"]
+    },
+    {
+      "name": "Kohl's",
+      "category": "department-store",
+      "domains": ["kohls.com"]
+    },
+    {
+      "name": "JCPenney",
+      "category": "department-store",
+      "domains": ["jcpenney.com"]
+    },
+    {
+      "name": "Sears",
+      "category": "department-store",
+      "domains": ["sears.com"]
+    },
+    {
+      "name": "Wayfair",
+      "category": "department-store",
+      "domains": ["wayfair.*"],
+      "priceSelectors": ["[data-enzyme-id=\"PriceBlock\"]", ".SFPrice", ".BasePriceBlock"]
+    },
+    {
+      "name": "Overstock",
+      "category": "department-store",
+      "domains": ["overstock.com"]
+    },
+    {
+      "name": "Newegg",
+      "category": "department-store",
+      "domains": ["newegg.*"],
+      "priceSelectors": [
+        ".price-current",
+        ".price-was",
+        ".price-save",
+        ".goods-price-current",
+        ".item-buybox-price-current"
+      ],
+      "skipSelectors": [".rating"]
+    },
+    {
+      "name": "B&H Photo",
+      "category": "department-store",
+      "domains": ["bhphotovideo.com"]
+    },
+    {
+      "name": "Micro Center",
+      "category": "department-store",
+      "domains": ["microcenter.com"]
+    },
+    {
+      "name": "Sam's Club",
+      "category": "department-store",
+      "domains": ["samsclub.com"]
+    },
+    {
+      "name": "Nike",
+      "category": "fashion",
+      "domains": ["nike.*"],
+      "priceSelectors": ["[data-test=\"product-price\"]", ".product-price", ".css-1emn094", "[aria-label*=\"price\"]"]
+    },
+    {
+      "name": "Adidas",
+      "category": "fashion",
+      "domains": ["adidas.com"]
+    },
+    {
+      "name": "ASOS",
+      "category": "fashion",
+      "domains": ["asos.com"]
+    },
+    {
+      "name": "Zara",
+      "category": "fashion",
+      "domains": ["zara.com"]
+    },
+    {
+      "name": "H&M",
+      "category": "fashion",
+      "domains": ["hm.com"]
+    },
+    {
+      "name": "UNIQLO",
+      "category": "fashion",
+      "domains": ["uniqlo.com"]
+    },
+    {
+      "name": "Gap",
+      "category": "fashion",
+      "domains": ["gap.com"]
+    },
+    {
+      "name": "SHEIN",
+      "category": "fashion",
+      "domains": ["shein.*"],
+      "priceSelectors": [".product-intro__head-price", ".product-price", ".from", "[class*=\"productPrice\"]"]
+    },
+    {
+      "name": "Forever 21",
+      "category": "fashion",
+      "domains": ["forever21.com"]
+    },
+    {
+      "name": "Urban Outfitters",
+      "category": "fashion",
+      "domains": ["urbanoutfitters.com"]
+    },
+    {
+      "name": "lululemon",
+      "category": "fashion",
+      "domains": ["lululemon.com"]
+    },
+    {
+      "name": "Puma",
+      "category": "fashion",
+      "domains": ["puma.com"]
+    },
+    {
+      "name": "Reebok",
+      "category": "fashion",
+      "domains": ["reebok.com"]
+    },
+    {
+      "name": "New Balance",
+      "category": "fashion",
+      "domains": ["newbalance.com"]
+    },
+    {
+      "name": "Foot Locker",
+      "category": "fashion",
+      "domains": ["footlocker.com"]
+    },
+    {
+      "name": "Apple",
+      "category": "electronics",
+      "domains": ["apple.com"]
+    },
+    {
+      "name": "Samsung",
+      "category": "electronics",
+      "domains": ["samsung.com"]
+    },
+    {
+      "name": "Dell",
+      "category": "electronics",
+      "domains": ["dell.com"]
+    },
+    {
+      "name": "HP",
+      "category": "electronics",
+      "domains": ["hp.com"]
+    },
+    {
+      "name": "Lenovo",
+      "category": "electronics",
+      "domains": ["lenovo.com"]
+    },
+    {
+      "name": "LG",
+      "category": "electronics",
+      "domains": ["lg.com"]
+    },
+    {
+      "name": "Sony",
+      "category": "electronics",
+      "domains": ["sony.com"]
+    },
+    {
+      "name": "Microsoft",
+      "category": "electronics",
+      "domains": ["microsoft.com"]
+    },
+    {
+      "name": "Bose",
+      "category": "electronics",
+      "domains": ["bose.com"]
+    },
+    {
+      "name": "IKEA",
+      "category": "home",
+      "domains": ["ikea.com"]
+    },
+    {
+      "name": "Crate & Barrel",
+      "category": "home",
+      "domains": ["crateandbarrel.com"]
+    },
+    {
+      "name": "Pottery Barn",
+      "category": "home",
+      "domains": ["potterybarn.com"]
+    },
+    {
+      "name": "West Elm",
+      "category": "home",
+      "domains": ["westelm.com"]
+    },
+    {
+      "name": "Bed Bath & Beyond",
+      "category": "home",
+      "domains": ["bedbathandbeyond.com"]
+    },
+    {
+      "name": "Instacart",
+      "category": "grocery",
+      "domains": ["instacart.com"]
+    },
+    {
+      "name": "FreshDirect",
+      "category": "grocery",
+      "domains": ["freshdirect.com"]
+    },
+    {
+      "name": "Walgreens",
+      "category": "grocery",
+      "domains": ["walgreens.com"]
+    },
+    {
+      "name": "CVS",
+      "category": "grocery",
+      "domains": ["cvs.com"]
+    },
+    {
+      "name": "Booking.com",
+      "category": "travel",
+      "domains": ["booking.com"],
+      "priceSelectors": [
+        "[data-testid=\"price-and-discounted-price\"]",
+        ".prco-valign-middle-helper",
+        ".bui-price-display__value",
+        ".price"
+      ],
+      "skipSelectors": [".bui-review-score"]
+    },
+    {
+      "name": "Expedia",
+      "category": "travel",
+      "domains": ["expedia.*"]
+    },
+    {
+      "name": "Airbnb",
+      "category": "travel",
+      "domains": ["airbnb.*"],
+      "priceSelectors": ["._tyxjp1", "[style*=\"--pricing\"]", "._1jo4hgw"],
+      "skipSelectors": ["._1qfhp3q"]
+    },
+    {
+      "name": "Hotels.com",
+      "category": "travel",
+      "domains": ["hotels.com"]
+    },
+    {
+      "name": "trivago",
+      "category": "travel",
+      "domains": ["trivago.com"]
+    },
+    {
+      "name": "KAYAK",
+      "category": "travel",
+      "domains": ["kayak.com"]
+    },
+    {
+      "name": "Agoda",
+      "category": "travel",
+      "domains": ["agoda.com"]
+    },
+    {
+      "name": "Priceline",
+      "category": "travel",
+      "domains": ["priceline.com"]
+    },
+    {
+      "name": "Chewy",
+      "category": "specialty",
+      "domains": ["chewy.com"]
+    },
+    {
+      "name": "Zappos",
+      "category": "specialty",
+      "domains": ["zappos.com"]
+    },
+    {
+      "name": "GameStop",
+      "category": "specialty",
+      "domains": ["gamestop.com"]
+    },
+    {
+      "name": "Barnes & Noble",
+      "category": "specialty",
+      "domains": ["barnesandnoble.com"]
+    },
+    {
+      "name": "Staples",
+      "category": "specialty",
+      "domains": ["staples.com"]
+    },
+    {
+      "name": "Office Depot",
+      "category": "specialty",
+      "domains": ["officedepot.com"]
+    },
+    {
+      "name": "Sephora",
+      "category": "specialty",
+      "domains": ["sephora.com"]
+    },
+    {
+      "name": "Ulta Beauty",
+      "category": "specialty",
+      "domains": ["ulta.com"]
+    },
+    {
+      "name": "Allegro",
+      "category": "marketplace",
+      "domains": ["allegro.pl"]
+    },
+    {
+      "name": "bol.com",
+      "category": "marketplace",
+      "domains": ["bol.com"]
+    },
+    {
+      "name": "OTTO",
+      "category": "marketplace",
+      "domains": ["otto.de"]
+    },
+    {
+      "name": "Cdiscount",
+      "category": "marketplace",
+      "domains": ["cdiscount.com"]
+    },
+    {
+      "name": "Kaufland",
+      "category": "marketplace",
+      "domains": ["kaufland.de"]
+    },
+    {
+      "name": "eMAG",
+      "category": "marketplace",
+      "domains": ["emag.*"]
+    },
+    {
+      "name": "Alza",
+      "category": "marketplace",
+      "domains": ["alza.*"]
+    },
+    {
+      "name": "Ozon",
+      "category": "marketplace",
+      "domains": ["ozon.ru"]
+    },
+    {
+      "name": "Wildberries",
+      "category": "marketplace",
+      "domains": ["wildberries.ru"]
+    },
+    {
+      "name": "Yandex Market",
+      "category": "marketplace",
+      "domains": ["market.yandex.ru"]
+    },
+    {
+      "name": "Vinted",
+      "category": "marketplace",
+      "domains": ["vinted.*"]
+    },
+    {
+      "name": "Trendyol",
+      "category": "marketplace",
+      "domains": ["trendyol.com"]
+    },
+    {
+      "name": "Hepsiburada",
+      "category": "marketplace",
+      "domains": ["hepsiburada.com"]
+    },
+    {
+      "name": "n11",
+      "category": "marketplace",
+      "domains": ["n11.com"]
+    },
+    {
+      "name": "noon",
+      "category": "marketplace",
+      "domains": ["noon.com"]
+    },
+    {
+      "name": "Digikala",
+      "category": "marketplace",
+      "domains": ["digikala.com"]
+    },
+    {
+      "name": "Basalam",
+      "category": "marketplace",
+      "domains": ["basalam.com"]
+    },
+    {
+      "name": "Divar",
+      "category": "marketplace",
+      "domains": ["divar.ir"]
+    },
+    {
+      "name": "Taobao",
+      "category": "marketplace",
+      "domains": ["taobao.com"]
+    },
+    {
+      "name": "Tmall",
+      "category": "marketplace",
+      "domains": ["tmall.com"]
+    },
+    {
+      "name": "JD.com",
+      "category": "marketplace",
+      "domains": ["jd.com"]
+    },
+    {
+      "name": "Pinduoduo",
+      "category": "marketplace",
+      "domains": ["pinduoduo.com", "yangkeduo.com"]
+    },
+    {
+      "name": "Shopee",
+      "category": "marketplace",
+      "domains": ["shopee.*"]
+    },
+    {
+      "name": "Lazada",
+      "category": "marketplace",
+      "domains": ["lazada.*"]
+    },
+    {
+      "name": "Tokopedia",
+      "category": "marketplace",
+      "domains": ["tokopedia.com"]
+    },
+    {
+      "name": "Blibli",
+      "category": "marketplace",
+      "domains": ["blibli.com"]
+    },
+    {
+      "name": "Tiki",
+      "category": "marketplace",
+      "domains": ["tiki.vn"]
+    },
+    {
+      "name": "Daraz",
+      "category": "marketplace",
+      "domains": ["daraz.*"]
+    },
+    {
+      "name": "Coupang",
+      "category": "marketplace",
+      "domains": ["coupang.com"]
+    },
+    {
+      "name": "Gmarket",
+      "category": "marketplace",
+      "domains": ["gmarket.co.kr"]
+    },
+    {
+      "name": "11st",
+      "category": "marketplace",
+      "domains": ["11st.co.kr"]
+    },
+    {
+      "name": "Mercari",
+      "category": "marketplace",
+      "domains": ["mercari.com"]
+    },
+    {
+      "name": "Yahoo! Shopping",
+      "category": "marketplace",
+      "domains": ["shopping.yahoo.co.jp"]
+    },
+    {
+      "name": "Meesho",
+      "category": "marketplace",
+      "domains": ["meesho.com"]
+    },
+    {
+      "name": "Snapdeal",
+      "category": "marketplace",
+      "domains": ["snapdeal.com"]
+    },
+    {
+      "name": "DHgate",
+      "category": "marketplace",
+      "domains": ["dhgate.com"]
+    },
+    {
+      "name": "Banggood",
+      "category": "marketplace",
+      "domains": ["banggood.com"]
+    },
+    {
+      "name": "Americanas",
+      "category": "marketplace",
+      "domains": ["americanas.com.br"]
+    },
+    {
+      "name": "Magalu",
+      "category": "marketplace",
+      "domains": ["magazineluiza.com.br"]
+    },
+    {
+      "name": "Casas Bahia",
+      "category": "marketplace",
+      "domains": ["casasbahia.com.br"]
+    },
+    {
+      "name": "Falabella",
+      "category": "marketplace",
+      "domains": ["falabella.com"]
+    },
+    {
+      "name": "Poshmark",
+      "category": "marketplace",
+      "domains": ["poshmark.com"]
+    },
+    {
+      "name": "StockX",
+      "category": "marketplace",
+      "domains": ["stockx.com"]
+    },
+    {
+      "name": "Argos",
+      "category": "department-store",
+      "domains": ["argos.co.uk"]
+    },
+    {
+      "name": "John Lewis",
+      "category": "department-store",
+      "domains": ["johnlewis.com"]
+    },
+    {
+      "name": "Marks & Spencer",
+      "category": "department-store",
+      "domains": ["marksandspencer.com"]
+    },
+    {
+      "name": "Very",
+      "category": "department-store",
+      "domains": ["very.co.uk"]
+    },
+    {
+      "name": "El Corte Inglés",
+      "category": "department-store",
+      "domains": ["elcorteingles.es"]
+    },
+    {
+      "name": "Liverpool",
+      "category": "department-store",
+      "domains": ["liverpool.com.mx"]
+    },
+    {
+      "name": "Coppel",
+      "category": "department-store",
+      "domains": ["coppel.com"]
+    },
+    {
+      "name": "Canadian Tire",
+      "category": "department-store",
+      "domains": ["canadiantire.ca"]
+    },
+    {
+      "name": "MediaMarkt",
+      "category": "electronics",
+      "domains": ["mediamarkt.*"]
+    },
+    {
+      "name": "Saturn",
+      "category": "electronics",
+      "domains": ["saturn.de"]
+    },
+    {
+      "name": "Currys",
+      "category": "electronics",
+      "domains": ["currys.co.uk"]
+    },
+    {
+      "name": "Coolblue",
+      "category": "electronics",
+      "domains": ["coolblue.nl", "coolblue.be"]
+    },
+    {
+      "name": "Fnac",
+      "category": "electronics",
+      "domains": ["fnac.com"]
+    },
+    {
+      "name": "Darty",
+      "category": "electronics",
+      "domains": ["darty.com"]
+    },
+    {
+      "name": "PcComponentes",
+      "category": "electronics",
+      "domains": ["pccomponentes.com"]
+    },
+    {
+      "name": "Yodobashi",
+      "category": "electronics",
+      "domains": ["yodobashi.com"]
+    },
+    {
+      "name": "Bic Camera",
+      "category": "electronics",
+      "domains": ["biccamera.com"]
+    },
+    {
+      "name": "Croma",
+      "category": "electronics",
+      "domains": ["croma.com"]
+    },
+    {
+      "name": "Jarir",
+      "category": "electronics",
+      "domains": ["jarir.com"]
+    },
+    {
+      "name": "eXtra",
+      "category": "electronics",
+      "domains": ["extra.com"]
+    },
+    {
+      "name": "Sharaf DG",
+      "category": "electronics",
+      "domains": ["sharafdg.com"]
+    },
+    {
+      "name": "Technolife",
+      "category": "electronics",
+      "domains": ["technolife.ir"]
+    },
+    {
+      "name": "Zalando",
+      "category": "fashion",
+      "domains": ["zalando.*"]
+    },
+    {
+      "name": "Boohoo",
+      "category": "fashion",
+      "domains": ["boohoo.com"]
+    },
+    {
+      "name": "Next",
+      "category": "fashion",
+      "domains": ["next.co.uk"]
+    },
+    {
+      "name": "Farfetch",
+      "category": "fashion",
+      "domains": ["farfetch.com"]
+    },
+    {
+      "name": "NET-A-PORTER",
+      "category": "fashion",
+      "domains": ["net-a-porter.com"]
+    },
+    {
+      "name": "Mytheresa",
+      "category": "fashion",
+      "domains": ["mytheresa.com"]
+    },
+    {
+      "name": "SSENSE",
+      "category": "fashion",
+      "domains": ["ssense.com"]
+    },
+    {
+      "name": "Revolve",
+      "category": "fashion",
+      "domains": ["revolve.com"]
+    },
+    {
+      "name": "Myntra",
+      "category": "fashion",
+      "domains": ["myntra.com"]
+    },
+    {
+      "name": "AJIO",
+      "category": "fashion",
+      "domains": ["ajio.com"]
+    },
+    {
+      "name": "Namshi",
+      "category": "fashion",
+      "domains": ["namshi.com"]
+    },
+    {
+      "name": "Digistyle",
+      "category": "fashion",
+      "domains": ["digistyle.com"]
+    },
+    {
+      "name": "Decathlon",
+      "category": "fashion",
+      "domains": ["decathlon.*"]
+    },
+    {
+      "name": "REI",
+      "category": "fashion",
+      "domains": ["rei.com"]
+    },
+    {
+      "name": "Dick's Sporting Goods",
+      "category": "fashion",
+      "domains": ["dickssportinggoods.com"]
+    },
+    {
+      "name": "Leroy Merlin",
+      "category": "home",
+      "domains": ["leroymerlin.*"]
+    },
+    {
+      "name": "ManoMano",
+      "category": "home",
+      "domains": ["manomano.*"]
+    },
+    {
+      "name": "Williams Sonoma",
+      "category": "home",
+      "domains": ["williams-sonoma.com"]
+    },
+    {
+      "name": "Tesco",
+      "category": "grocery",
+      "domains": ["tesco.com"]
+    },
+    {
+      "name": "Sainsbury's",
+      "category": "grocery",
+      "domains": ["sainsburys.co.uk"]
+    },
+    {
+      "name": "Asda",
+      "category": "grocery",
+      "domains": ["asda.com"]
+    },
+    {
+      "name": "Ocado",
+      "category": "grocery",
+      "domains": ["ocado.com"]
+    },
+    {
+      "name": "Lidl",
+      "category": "grocery",
+      "domains": ["lidl.*"]
+    },
+    {
+      "name": "Carrefour",
+      "category": "grocery",
+      "domains": ["carrefour.*", "carrefouruae.com"]
+    },
+    {
+      "name": "Kroger",
+      "category": "grocery",
+      "domains": ["kroger.com"]
+    },
+    {
+      "name": "BigBasket",
+      "category": "grocery",
+      "domains": ["bigbasket.com"]
+    },
+    {
+      "name": "Boots",
+      "category": "grocery",
+      "domains": ["boots.com"]
+    },
+    {
+      "name": "Skyscanner",
+      "category": "travel",
+      "domains": ["skyscanner.*"]
+    },
+    {
+      "name": "Trip.com",
+      "category": "travel",
+      "domains": ["trip.com"]
+    },
+    {
+      "name": "Vrbo",
+      "category": "travel",
+      "domains": ["vrbo.com"]
+    },
+    {
+      "name": "Nykaa",
+      "category": "specialty",
+      "domains": ["nykaa.com"]
+    },
+    {
+      "name": "Notino",
+      "category": "specialty",
+      "domains": ["notino.*"]
+    },
+    {
+      "name": "PetSmart",
+      "category": "specialty",
+      "domains": ["petsmart.com"]
+    },
+    {
+      "name": "Steam",
+      "category": "digital",
+      "domains": ["store.steampowered.com"]
+    },
+    {
+      "name": "Epic Games Store",
+      "category": "digital",
+      "domains": ["store.epicgames.com"]
+    },
+    {
+      "name": "PlayStation Store",
+      "category": "digital",
+      "domains": ["store.playstation.com"]
+    },
+    {
+      "name": "Xbox",
+      "category": "digital",
+      "domains": ["xbox.com"]
+    },
+    {
+      "name": "Nintendo",
+      "category": "digital",
+      "domains": ["nintendo.com"]
+    },
+    {
+      "name": "Torob",
+      "category": "price-comparison",
+      "domains": ["torob.com"]
+    },
+    {
+      "name": "Emalls",
+      "category": "price-comparison",
+      "domains": ["emalls.ir"]
+    },
+    {
+      "name": "idealo",
+      "category": "price-comparison",
+      "domains": ["idealo.*"]
+    },
+    {
+      "name": "Geizhals",
+      "category": "price-comparison",
+      "domains": ["geizhals.*"]
+    },
+    {
+      "name": "PriceRunner",
+      "category": "price-comparison",
+      "domains": ["pricerunner.com"]
+    },
+    {
+      "name": "Kakaku",
+      "category": "price-comparison",
+      "domains": ["kakaku.com"]
+    },
+    {
+      "name": "Shopify Store",
+      "category": "platform",
+      "domains": ["myshopify.com", "shopify.com"],
+      "priceSelectors": [
+        ".product-price",
+        ".price",
+        ".price__regular",
+        ".price__sale",
+        ".price-item",
+        ".price-item--regular",
+        ".price-item--sale",
+        "[data-product-price]",
+        ".product__price",
+        ".product-single__price",
+        ".money",
+        ".current_price",
+        ".compare_price"
+      ],
+      "skipSelectors": [".product-rating", ".shopify-review"],
+      "pageIndicators": [
+        "meta[name=\"shopify-checkout-api-token\"]",
+        "meta[name=\"shopify-digital-wallet\"]",
+        "link[href*=\"cdn.shopify.com\"]",
+        "script[src*=\"cdn.shopify.com\"]"
+      ]
+    }
+  ]
+}
