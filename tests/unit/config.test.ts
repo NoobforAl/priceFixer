@@ -7,7 +7,7 @@ import shopsSchema from '../../src/config/schema/shops.schema.json';
 import protectedFile from '../../src/config/protected-sites.json';
 import { hostMatchesPattern } from '../../src/sites/domains';
 import { findShop, getPriceElements, SHOPS } from '../../src/sites/shops';
-import { detectPaymentPage, protectedHostReason } from '../../src/sites/siteGuard';
+import { detectPaymentPage, isBlockedSite, protectedHostReason } from '../../src/sites/siteGuard';
 
 const DOMAIN = /^([a-z0-9-]+\.)+[a-z0-9-]+$/;
 const DOMAIN_OR_WILDCARD = /^(([a-z0-9-]+\.)+[a-z0-9-]+|[a-z0-9-]+\.\*)$/;
@@ -84,6 +84,16 @@ describe('protected-sites.json', () => {
     const shopDomains = SHOPS.flatMap(shop => shop.domains).filter(d => !d.endsWith('.*'));
 
     expect(shopDomains.filter(d => protectedHostReason(d) !== null)).toEqual([]);
+  });
+
+  it('is not bypassed by a trailing-dot (fully-qualified) hostname', () => {
+    const reason = (url: string) => detectPaymentPage(new URL(url), document).reason;
+
+    expect(reason('https://www.paypal.com./')).toBe('payment gateway');
+    expect(reason('https://secure.chase.com./accounts')).toBe('bank site');
+    expect(reason('https://pay.shop.example.com./')).toBe('checkout page');
+    expect(isBlockedSite('shop.com.', ['shop.com'])).toBe(true);
+    expect(findShop('www.amazon.de.')?.name).toBe('Amazon');
   });
 
   it('reports the reason of the matching group', () => {

@@ -29,9 +29,18 @@ export function normalizeDomain(input: string): string {
   return /^[a-z0-9.-]+$/.test(value) ? value : '';
 }
 
+/**
+ * Canonical form of a page hostname: lowercase, without the trailing dot of a
+ * fully-qualified name. `www.PayPal.com.` is the same site as `paypal.com`;
+ * comparing it raw would let it slip past the payment and blocklist guards.
+ */
+export function canonicalHost(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.+$/, '');
+}
+
 /** True when `hostname` is `domain` or a subdomain of it. */
 export function domainMatches(hostname: string, domain: string): boolean {
-  const host = hostname.toLowerCase().replace(/^www\./, '');
+  const host = canonicalHost(hostname).replace(/^www\./, '');
 
   return host === domain || host.endsWith(`.${domain}`);
 }
@@ -48,7 +57,7 @@ export function hostMatchesPattern(hostname: string, pattern: string): boolean {
   }
 
   const name = pattern.slice(0, -2);
-  const labels = hostname.toLowerCase().split('.');
+  const labels = canonicalHost(hostname).split('.');
   const index = labels.lastIndexOf(name);
   const suffixLabels = labels.length - index - 1;
 

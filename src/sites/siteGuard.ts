@@ -18,7 +18,7 @@
  */
 
 import protectedFile from '../config/protected-sites.json';
-import { domainMatches, normalizeDomain } from './domains';
+import { canonicalHost, domainMatches, normalizeDomain } from './domains';
 
 export interface HostGroup {
   id: string;
@@ -96,7 +96,7 @@ export function protectedPathReason(url: URL | Location): string | null {
     .split('/')
     .map(seg => seg.replace(/\.(html?|php|aspx?|jsp)$/, ''));
   // Subdomain labels only: "pay.shop.com" yes, "pay.com" itself no.
-  const labels = url.hostname.toLowerCase().split('.').slice(0, -2);
+  const labels = canonicalHost(url.hostname).split('.').slice(0, -2);
 
   const part = [...segments, ...labels].find(p => SEGMENT_REASONS.has(p));
 
