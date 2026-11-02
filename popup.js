@@ -61,8 +61,6 @@ class PopupController {
     });
   }
 
-  // ─── Theme ───────────────────────────────────────────────────────────
-
   /** Flip between light and dark (an explicit choice, replacing "system"). */
   toggleTheme() {
     const current = effectiveTheme(document.documentElement.dataset.theme);
@@ -98,8 +96,6 @@ class PopupController {
       this.showNotice('Could not open the settings page.');
     }
   }
-
-  // ─── Security: payment pause + blocklist ────────────────────────────
 
   async toggleSecurity() {
     const toggle = document.getElementById('securityToggle');
@@ -231,8 +227,6 @@ class PopupController {
     blockBtn.disabled = !current;
   }
 
-  // ─── Custom rules ───────────────────────────────────────────────────
-
   domain() {
     try {
       return new URL(this.tab.url).hostname.replace(/^www\./, '');
@@ -327,8 +321,6 @@ class PopupController {
       : '';
   }
 
-  // ─── Tab / messaging ────────────────────────────────────────────────
-
   async getCurrentTab() {
     const tabs = await api.tabs.query({ active: true, currentWindow: true });
 
@@ -400,8 +392,6 @@ class PopupController {
     }
   }
 
-  // ─── Actions ────────────────────────────────────────────────────────
-
   async setGlobalEnabled(enabled) {
     const response = await this.send({ action: 'setGlobalEnabled', enabled });
 
@@ -460,8 +450,6 @@ class PopupController {
       this.showNotice('Could not activate on this page. Reload the page and try again.');
     }
   }
-
-  // ─── Rendering ──────────────────────────────────────────────────────
 
   showUrl() {
     const el = document.getElementById('currentUrl');

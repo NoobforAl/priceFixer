@@ -24,17 +24,19 @@ prices on web pages and shows them rounded up: **$5.99 is $6, not $5.**
 
 ## Commands
 
-| Task                         | Command                         |
-| ---------------------------- | ------------------------------- |
-| Install dependencies         | `make install`                  |
-| Everything before a commit   | `make check`                    |
-| Unit tests only              | `make test`                     |
-| Fix lint + formatting        | `make format`                   |
-| Try it in real Firefox       | `make firefox`                  |
-| Watch build (Chrome/Firefox) | `make dev` / `make dev-firefox` |
-| Performance benchmarks       | `make bench`                    |
-| Release zips                 | `make package`                  |
-| Bump version                 | `make version V=1.5.0`          |
+| Task                         | Command                             |
+| ---------------------------- | ----------------------------------- |
+| Install dependencies         | `make install`                      |
+| Everything before a commit   | `make check`                        |
+| Unit tests only              | `make test`                         |
+| Fix lint + formatting        | `make format`                       |
+| CSS lint / unused CSS        | `make lint-css` / `make css-unused` |
+| Newer package versions       | `make outdated`                     |
+| Try it in real Firefox       | `make firefox`                      |
+| Watch build (Chrome/Firefox) | `make dev` / `make dev-firefox`     |
+| Performance benchmarks       | `make bench`                        |
+| Release zips                 | `make package`                      |
+| Bump version                 | `make version V=1.5.0`              |
 
 ## Where things are
 

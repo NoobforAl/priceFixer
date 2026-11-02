@@ -21,6 +21,7 @@ const SYNC_KEYS = [
 class OptionsController {
   constructor() {
     this.settings = {};
+
     /** Draft per-site selector text keyed by domain (unsaved edits). */
     this.siteSelectors = {};
     this.currentRuleSite = '';
@@ -131,8 +132,6 @@ class OptionsController {
     }
   }
 
-  // ─── Storage ────────────────────────────────────────────────────────
-
   async load() {
     try {
       this.settings = (await api.storage.sync.get(SYNC_KEYS)) || {};
@@ -203,8 +202,6 @@ class OptionsController {
     });
   }
 
-  // ─── Derived state ──────────────────────────────────────────────────
-
   blockedSites() {
     const list = this.settings.blockedSites;
 
@@ -233,8 +230,6 @@ class OptionsController {
       extraPatterns: Array.isArray(r.extraPatterns) ? r.extraPatterns : [],
     };
   }
-
-  // ─── Blocked sites ──────────────────────────────────────────────────
 
   addBlockedFromInput() {
     const input = document.getElementById('blockInput');
@@ -274,8 +269,6 @@ class OptionsController {
       container.appendChild(this.listItem(domain, [remove]));
     }
   }
-
-  // ─── Per-site settings ──────────────────────────────────────────────
 
   addSiteFromInput() {
     const input = document.getElementById('siteInput');
@@ -334,8 +327,6 @@ class OptionsController {
       container.appendChild(this.listItem(domain, [state, toggle, remove]));
     }
   }
-
-  // ─── Rounding step ──────────────────────────────────────────────────
 
   /** Save the global rounding step, or clear it to fall back to charm-only rounding. */
   async setRoundingStep(rawValue) {
@@ -418,8 +409,6 @@ class OptionsController {
       container.appendChild(this.listItem(domain, [value, remove]));
     }
   }
-
-  // ─── Rules ──────────────────────────────────────────────────────────
 
   markRulesDirty(dirty) {
     this.rulesDirty = dirty;
@@ -581,8 +570,6 @@ class OptionsController {
     }
   }
 
-  // ─── Stats / reset ──────────────────────────────────────────────────
-
   async renderStats() {
     let stats = {};
 
@@ -623,8 +610,6 @@ class OptionsController {
     await this.load();
     this.render();
   }
-
-  // ─── Rendering ──────────────────────────────────────────────────────
 
   render() {
     const s = this.settings;

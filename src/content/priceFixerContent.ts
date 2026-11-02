@@ -27,8 +27,10 @@ interface Placement {
 interface ProcessedRecord {
   originals: Placement[];
   inserted: Node[];
+
   /** Element whose children were swapped as a unit (split prices). */
   unitElement?: Element;
+
   /** Replace mode on a plain text node: no node swap, just text. */
   textNode?: Text;
   originalText?: string;
@@ -43,6 +45,7 @@ interface PriceChange {
 interface SiteSettings {
   enabled: boolean;
   mode?: DisplayMode;
+
   /** Overrides the global rounding step for this site; 0 forces the default (charm-only). */
   roundingStep?: number;
 }
@@ -92,6 +95,7 @@ const COMPACT_TEXT_LIMIT = 40;
 
 /** Budget per scan slice; the rest of the page is scanned in idle time. */
 const SCAN_SLICE_MS = 12;
+
 /**
  * On a site that keeps recycling its DOM (virtualized/infinite-scroll
  * listings), the site removes old nodes itself; without pruning, `records`
@@ -103,15 +107,20 @@ const SCAN_SLICE_MS = 12;
  * or a hundred times a second.
  */
 const PRUNE_EVERY_N_BATCHES = 10;
+
 /** Recent changes kept for the popup's list; older ones add nothing but memory. */
 const MAX_TRACKED_CHANGES = 500;
+
 const DIGIT = /[\d۰-۹٠-٩]/;
+
 /** A node that is only a piece of a number: "$", "5", ".", "99" */
 const FRAGMENT = /^\s*(?:[\d۰-۹٠-٩.,٬٫'’]+|[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼])\s*$/;
+
 /** ".99 today" continues a number started in the previous node */
 const CONTINUES_NUMBER = /^[.,٫٬'’][\d۰-۹٠-٩]/;
 const TWO_DIGITS = /^\s*[\d۰-۹٠-٩]{2}\s*$/;
 const ENDS_WITH_DIGIT = /[\d۰-۹٠-٩]$/;
+
 // Screen-reader-only conventions, checked before the (expensive) computed style
 const SR_ONLY_CLASS =
   /(^|\s)(a-offscreen|sr-only|visually-hidden|visuallyhidden|screen-reader-only|screen-reader-text|offscreen)(\s|$)/;
@@ -129,6 +138,11 @@ interface CoveredNode {
   to: number;
 }
 
+/**
+ * The extension API of the current browser: `chrome` on Chromium, `browser`
+ * on Firefox. Returns null when neither exposes `storage` (e.g. unit tests),
+ * so callers fall back to defaults instead of throwing.
+ */
 function getApi(): typeof chrome | null {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     return chrome;
@@ -146,11 +160,14 @@ export class PriceFixerContent {
   private observer: MutationObserver | null = null;
   private globalEnabled = true;
   private siteEnabled = true;
+
   /** User pressed Restore on this site: stay hands-off for the rest of the browser session. */
   private sitePaused = false;
+
   /** Domains the user blocked from the popup (storage.sync.blockedSites). */
   private blockedSites: string[] = [];
   private siteBlocked = false;
+
   /** Leave checkout / payment pages untouched (storage.sync.pauseOnPayment, default on). */
   private pauseOnPayment = true;
   private paymentPage = false;
@@ -161,6 +178,7 @@ export class PriceFixerContent {
   private destroyed = false;
   private isProcessing = false;
   private displayMode: DisplayMode = 'highlight';
+
   /**
    * When set, every detected price is rounded up to the next multiple of
    * this step (see PricePatterns.roundToStep), replacing the default
@@ -172,9 +190,11 @@ export class PriceFixerContent {
   private currentDomain = '';
   private stylesInjected = false;
   private tooltipBound = false;
+
   /** Known shop for this page (shops.json), or null */
   private shop: Shop | null = null;
   private touchedNodes = new WeakSet<Node>();
+
   /** Pending work of a time-sliced scan; null when idle. */
   private scanQueue: Node[] | null = null;
   private scanGeneration = 0;
@@ -190,6 +210,11 @@ export class PriceFixerContent {
     this.init();
   }
 
+  /**
+   * True only when every switch allows changes on this page: the global
+   * toggle, the per-site toggle, no session pause (Restore), not blocklisted,
+   * and not a payment page while "pause on payment" is on.
+   */
   private get isEnabled(): boolean {
     return (
       this.globalEnabled &&
@@ -200,6 +225,12 @@ export class PriceFixerContent {
     );
   }
 
+  /**
+   * Start-up order matters: settings must be loaded before the first scan,
+   * and listeners are attached only after it, so the first scan's own DOM
+   * edits are not fed back through the observer. Stops early if destroy()
+   * ran while settings were loading.
+   */
   private async init(): Promise<void> {
     this.detectShoppingSite();
     this.checkPaymentPage();
@@ -240,8 +271,6 @@ export class PriceFixerContent {
     return changed;
   }
 
-  // ─── Settings & stats ───────────────────────────────────────────────
-
   private async loadSettings(): Promise<void> {
     try {
       const api = getApi();
@@ -268,6 +297,12 @@ export class PriceFixerContent {
     }
   }
 
+  /**
+   * Copy storage.sync values onto the instance. Per-site settings override
+   * the global ones: the site's display mode replaces the global mode, and
+   * a site rounding step (0 included) replaces the global step. Missing keys
+   * fall back to the defaults (enabled, pause on payment on).
+   */
   private applySettings(result: Record<string, unknown>): void {
     this.globalEnabled = result.globalEnabled !== false;
     if (result.displayMode === 'replace' || result.displayMode === 'highlight') {
@@ -292,6 +327,7 @@ export class PriceFixerContent {
     this.pauseOnPayment = result.pauseOnPayment !== false;
   }
 
+  /** A positive number is a rounding step; anything else (0 included) means the default rule. */
   private parseStep(value: unknown): number | null {
     return typeof value === 'number' && value > 0 ? value : null;
   }
@@ -306,11 +342,23 @@ export class PriceFixerContent {
       : PricePatterns.roundUpPrice(value);
   }
 
+  /**
+   * Compile the user's custom rules (storage.sync.customRules) for this
+   * domain and hand the extra price patterns to PricePatterns. Entries that
+   * fail to compile end up in `rules.errors` for the popup to show.
+   */
   public applyRules(raw: unknown): void {
     this.rules = compileRules(normalizeRules(raw), this.currentDomain);
     PricePatterns.setExtraPatterns(this.rules.extraPatterns);
   }
 
+  /**
+   * React to settings changed elsewhere (popup, options page, another tab).
+   * Only the changed keys arrive, so they are merged over the current
+   * values before applySettings runs. The page is rescanned or restored only
+   * when the enabled state or display mode actually changed; a change to the
+   * custom rules always rescans.
+   */
   private setupStorageListener(): void {
     const api = getApi();
 
@@ -357,11 +405,12 @@ export class PriceFixerContent {
     });
   }
 
-  // ─── Per-site session pause ─────────────────────────────────────────
-  // Kept in storage.session (cleared when the browser closes) so that after
-  // the user restores original prices on a site, every page of that site
-  // stays untouched until they rescan or re-enable it.
-
+  /**
+   * Whether the user pressed Restore on this site earlier in the browser
+   * session. The flag lives in storage.session (cleared when the browser
+   * closes) so that every page of the site stays untouched until the user
+   * rescans or re-enables it. Any storage failure counts as "not paused".
+   */
   private async loadSitePaused(): Promise<boolean> {
     try {
       const session = getApi()?.storage?.session;
@@ -379,6 +428,7 @@ export class PriceFixerContent {
     }
   }
 
+  /** Add or remove this domain in storage.session.pausedSites (see loadSitePaused). */
   private async saveSitePaused(paused: boolean): Promise<void> {
     try {
       const session = getApi()?.storage?.session;
@@ -415,6 +465,10 @@ export class PriceFixerContent {
     }
   }
 
+  /**
+   * Store the per-site on/off switch, keeping the site's other settings
+   * (display mode, rounding step) as they are.
+   */
   private async saveSiteSetting(enabled: boolean): Promise<void> {
     try {
       const api = getApi();
@@ -426,7 +480,7 @@ export class PriceFixerContent {
       const result = await api.storage.sync.get(['siteSettings']);
       const siteSettings = (result.siteSettings || {}) as Record<string, SiteSettings>;
 
-      siteSettings[this.currentDomain] = { enabled };
+      siteSettings[this.currentDomain] = { ...siteSettings[this.currentDomain], enabled };
       await api.storage.sync.set({ siteSettings });
     } catch {
       // Storage not available
@@ -441,7 +495,7 @@ export class PriceFixerContent {
       return;
     }
 
-    const list = this.blockedSites.filter(d => d !== target);
+    const list = this.blockedSites.filter(site => site !== target);
 
     if (blocked) {
       list.push(target);
@@ -452,6 +506,12 @@ export class PriceFixerContent {
     this.saveSetting({ blockedSites: list });
   }
 
+  /**
+   * Add a batch of changes to the lifetime stats in storage.local: price
+   * count and total "hidden" amount, both globally and for this domain.
+   * Amounts are summed as plain numbers across currencies and rounded to
+   * cents, so the total is a rough indicator, not real money.
+   */
   private async saveStats(changes: PriceChange[]): Promise<void> {
     if (changes.length === 0) {
       return;
@@ -518,8 +578,11 @@ export class PriceFixerContent {
     return { totalPricesFound: 0, totalPricesRounded: 0, totalHiddenAmount: 0, siteStats: {} };
   }
 
-  // ─── Styles & tooltip ───────────────────────────────────────────────
-
+  /**
+   * Add the highlight and tooltip CSS once per page. A constructable
+   * stylesheet is preferred because it adds no node to the page; a <style>
+   * element is the fallback.
+   */
   private injectStyles(): void {
     if (this.stylesInjected) {
       return;
@@ -542,9 +605,11 @@ export class PriceFixerContent {
         padding: 0 0.15em !important;
         cursor: help !important;
       }
+
       .${HIGHLIGHT_CLASS}:hover {
         background: rgba(74, 222, 128, 0.35) !important;
       }
+
       #${TOOLTIP_ID} {
         all: unset !important;
         position: fixed !important;
@@ -560,6 +625,7 @@ export class PriceFixerContent {
         pointer-events: none !important;
         white-space: normal !important;
       }
+
       #${TOOLTIP_ID} b { font-weight: 700 !important; color: #86efac !important; }
     `;
 
@@ -580,6 +646,11 @@ export class PriceFixerContent {
     (document.head || document.documentElement).appendChild(style);
   }
 
+  /**
+   * One set of document-level listeners serves every highlight (event
+   * delegation), so highlights inserted later need no wiring. Scrolling
+   * hides the tooltip because its fixed position would no longer match.
+   */
   private bindTooltip(): void {
     if (this.tooltipBound) {
       return;
@@ -595,6 +666,7 @@ export class PriceFixerContent {
         this.showTooltip(wrapper);
       }
     });
+
     document.addEventListener('mouseout', event => {
       const target = event.target as Element | null;
 
@@ -602,9 +674,14 @@ export class PriceFixerContent {
         this.hideTooltip();
       }
     });
+
     document.addEventListener('scroll', () => this.hideTooltip(), { passive: true, capture: true });
   }
 
+  /**
+   * The shared tooltip element, created again if the page removed it.
+   * `data-pf-skip` keeps the scanner from rounding the prices shown in it.
+   */
   private getTooltip(): HTMLElement {
     let tip = document.getElementById(TOOLTIP_ID);
 
@@ -619,6 +696,12 @@ export class PriceFixerContent {
     return tip;
   }
 
+  /**
+   * Fill the tooltip from the highlight's data attributes and place it
+   * centred above the price, or below it when there is no room above, kept
+   * 4px inside the viewport. It is measured while invisible so it never
+   * flashes at the old position.
+   */
   private showTooltip(wrapper: HTMLElement): void {
     const original = wrapper.getAttribute('data-pf-original') || '';
     const rounded = wrapper.textContent || '';
@@ -627,24 +710,28 @@ export class PriceFixerContent {
     const tip = this.getTooltip();
 
     tip.textContent = '';
+
     const line1 = document.createElement('div');
 
     line1.append('Listed as ');
-    const b = document.createElement('b');
 
-    b.textContent = original;
-    line1.append(b);
+    const originalLabel = document.createElement('b');
+
+    originalLabel.textContent = original;
+
+    line1.append(originalLabel);
+
     const line2 = document.createElement('div');
 
     line2.style.setProperty('opacity', '0.75', 'important');
     line2.textContent = `Only ${diff} less than ${rounded} — charm pricing.`;
+
     tip.append(line1, line2);
-
-    const rect = wrapper.getBoundingClientRect();
-
     tip.style.setProperty('visibility', 'hidden', 'important');
     tip.style.setProperty('display', 'block', 'important');
+
     const tipRect = tip.getBoundingClientRect();
+    const rect = wrapper.getBoundingClientRect();
 
     let top = rect.top - tipRect.height - 8;
 
@@ -669,8 +756,11 @@ export class PriceFixerContent {
     }
   }
 
-  // ─── Scanning ───────────────────────────────────────────────────────
-
+  /**
+   * Start a full-page scan, cancelling any scan still running. The work runs
+   * in time slices (runScanSlice). `recordStats` is true only for the first
+   * scan after page load, so rescans don't count the same prices twice.
+   */
   private processPage(recordStats = false): void {
     if (!this.isEnabled || this.isProcessing) {
       return;
@@ -721,13 +811,13 @@ export class PriceFixerContent {
     this.isProcessing = true;
     const before = this.priceChanges.length;
     const deadline = performance.now() + SCAN_SLICE_MS;
-    let n = 0;
+    let visited = 0;
 
     try {
       while (queue.length > 0) {
         this.scanNode(queue.pop() as Node, queue, false);
         // performance.now() is not free either: check every few nodes
-        if ((++n & 31) === 0 && performance.now() > deadline) {
+        if ((++visited & 31) === 0 && performance.now() > deadline) {
           break;
         }
       }
@@ -748,17 +838,27 @@ export class PriceFixerContent {
     }
   }
 
+  /**
+   * Stop a time-sliced scan. Bumping the generation makes any slice already
+   * queued with requestIdle exit as soon as it runs.
+   */
   private cancelScan(): void {
     this.scanGeneration++;
     this.scanQueue = null;
   }
 
+  /**
+   * True when the node is, or sits inside, markup the extension inserted
+   * (highlight, unit element) or must ignore (tooltip). Used to keep our own
+   * edits from being scanned again.
+   */
   private isOurs(node: Node): boolean {
     const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
 
     return !!el?.closest?.(`.${HIGHLIGHT_CLASS}, [${UNIT_ATTR}], [data-pf-skip]`);
   }
 
+  /** `contenteditable` on this element itself ("", "true", "plaintext-only"; not "false"). */
   private static isEditable(el: Element): boolean {
     const value = el.getAttribute('contenteditable');
 
@@ -846,6 +946,12 @@ export class PriceFixerContent {
     }
   }
 
+  /**
+   * An element with child elements whose whole text is short (at most
+   * COMPACT_TEXT_LIMIT characters) and looks like a price. Such an element
+   * may hold one price split across children, so it is handled as a unit by
+   * processCompactElement instead of node by node.
+   */
   private isCompactCandidate(el: Element): boolean {
     if (el.childElementCount === 0) {
       return false;
@@ -869,6 +975,7 @@ export class PriceFixerContent {
     return PricePatterns.isIconAmount(text, this.isRtlPage()) && !!el.querySelector('svg, img');
   }
 
+  /** Persian / Arabic page (by `lang` or `dir`), where bare icon prices are common. */
   private isRtlPage(): boolean {
     const lang = (document.documentElement.lang || '').toLowerCase();
 
@@ -901,6 +1008,7 @@ export class PriceFixerContent {
     return walk(el) ? text : null;
   }
 
+  /** Text nodes under `el` in document order, leaving out subtrees shouldSkipElement rejects. */
   private collectTextNodes(el: Element): Text[] {
     const nodes: Text[] = [];
     const walk = (node: Node): void => {
@@ -918,11 +1026,6 @@ export class PriceFixerContent {
     return nodes;
   }
 
-  /**
-   * Handle an element small enough to hold a single price that may be split
-   * across child elements. Prices contained in one text node are processed
-   * normally; prices spanning several nodes are replaced as a unit.
-   */
   /**
    * Screen-reader-only text (Amazon's `.a-offscreen`, Bootstrap `.sr-only`,
    * ...) sits next to the visible price and must not be merged with it.
@@ -943,13 +1046,17 @@ export class PriceFixerContent {
     // Cheap markup conventions first; walk up to the compact root only.
     let hidden = false;
 
-    for (let a: Element | null = el; a && a !== root; a = a.parentElement) {
-      const className = typeof a.className === 'string' ? a.className : '';
+    for (
+      let current: Element | null = el;
+      current && current !== root;
+      current = current.parentElement
+    ) {
+      const className = typeof current.className === 'string' ? current.className : '';
 
       if (
-        a.hasAttribute('hidden') ||
+        current.hasAttribute('hidden') ||
         SR_ONLY_CLASS.test(className) ||
-        HIDDEN_INLINE_STYLE.test(a.getAttribute('style') || '')
+        HIDDEN_INLINE_STYLE.test(current.getAttribute('style') || '')
       ) {
         hidden = true;
         break;
@@ -990,6 +1097,21 @@ export class PriceFixerContent {
     return rect.right < 0 || rect.bottom < 0;
   }
 
+  /**
+   * Handle an element small enough to hold a single price that may be split
+   * across child elements ("<span>$</span><span>5</span><sup>99</sup>").
+   *
+   * 1. Collect the element's text nodes; when a merge could go wrong, process
+   *    screen-reader-only nodes on their own and leave them out of the merge.
+   * 2. Join the visible nodes into one string, with a map from each slice of
+   *    that string back to its text node. Number fragments are glued
+   *    together, other text is kept apart by a space.
+   * 3. Find prices in the joined string. Two fallbacks apply when nothing is
+   *    found: a bare number next to a currency icon, and visible digits that
+   *    match a hidden accessible price.
+   * 4. A price that sits in one text node is processed normally; a price
+   *    spanning several nodes is replaced as a unit by processSplitPrice.
+   */
   private processCompactElement(el: Element): void {
     const all = this.collectTextNodes(el);
 
@@ -1007,10 +1129,11 @@ export class PriceFixerContent {
     let digitNodes = 0;
     let completePrices = 0;
 
-    for (const n of all) {
-      if (DIGIT.test(n.data)) {
+    for (const textNode of all) {
+      if (DIGIT.test(textNode.data)) {
         digitNodes++;
-        if (PricePatterns.mayContainPrice(n.data)) {
+
+        if (PricePatterns.mayContainPrice(textNode.data)) {
           completePrices++;
         }
       }
@@ -1019,11 +1142,11 @@ export class PriceFixerContent {
     if (completePrices > 0 && digitNodes > 1) {
       const cache = new Map<Element, boolean>();
 
-      hidden = all.filter(n => this.isVisuallyHidden(n, el, cache));
+      hidden = all.filter(textNode => this.isVisuallyHidden(textNode, el, cache));
       if (hidden.length > 0) {
         const hiddenSet = new Set(hidden);
 
-        nodes = all.filter(n => !hiddenSet.has(n));
+        nodes = all.filter(textNode => !hiddenSet.has(textNode));
         for (const node of hidden) {
           this.processTextNode(node, false);
         }
@@ -1038,7 +1161,7 @@ export class PriceFixerContent {
     // Nodes that look like pieces of one number ("$", "5", ".", "99") are
     // glued together; anything else ("Now", "57.8 ¢/ea") is kept apart by a
     // space so neighbouring prices and unit prices cannot fuse.
-    const isFragment = (t: string): boolean => FRAGMENT.test(t);
+    const isFragment = (text: string): boolean => FRAGMENT.test(text);
     let combined = '';
     const spans: Array<{ node: Text; start: number; end: number }> = [];
     let prevParent: Node | null = null;
@@ -1086,8 +1209,10 @@ export class PriceFixerContent {
     // accessible price with the same digits ("$9.99" offscreen + "9.99"
     // visible): treat the visible text as that price.
     if (matches.length === 0 && hidden.length > 0) {
-      const hiddenMatches = PricePatterns.findPrices(hidden.map(n => n.data).join(' '));
-      const digits = (t: string): string => t.replace(/[^\d۰-۹٠-٩]/g, '');
+      const hiddenMatches = PricePatterns.findPrices(
+        hidden.map(textNode => textNode.data).join(' ')
+      );
+      const digits = (text: string): string => text.replace(/[^\d۰-۹٠-٩]/g, '');
 
       if (
         hiddenMatches.length === 1 &&
@@ -1109,7 +1234,9 @@ export class PriceFixerContent {
     }
 
     for (const match of matches) {
-      const covered = spans.filter(s => s.start < match.endIndex && s.end > match.startIndex);
+      const covered = spans.filter(
+        span => span.start < match.endIndex && span.end > match.startIndex
+      );
 
       if (covered.length === 0) {
         continue;
@@ -1121,17 +1248,26 @@ export class PriceFixerContent {
       }
 
       this.processSplitPrice(
-        covered.map(s => ({
-          node: s.node,
-          from: Math.max(0, match.startIndex - s.start),
-          to: Math.min(s.node.data.length, match.endIndex - s.start),
+        covered.map(span => ({
+          node: span.node,
+          from: Math.max(0, match.startIndex - span.start),
+          to: Math.min(span.node.data.length, match.endIndex - span.start),
         })),
         match
       );
     }
   }
 
-  /** Replace a price spread over several text nodes as one unit. */
+  /**
+   * Replace a price spread over several text nodes as one unit.
+   *
+   * When the nodes' common ancestor holds nothing but this price, its whole
+   * content is swapped and the element is marked with UNIT_ATTR. Otherwise
+   * the node holding the digits receives the new price and the other covered
+   * text is cut out. Either way the change is recorded so restoreOriginal()
+   * can put back the exact original nodes. Skipped when the price would not
+   * change or a node was already handled or removed from the page.
+   */
   private processSplitPrice(nodes: CoveredNode[], match: PriceMatch): void {
     const roundedValue = this.roundPrice(match.value);
 
@@ -1139,7 +1275,7 @@ export class PriceFixerContent {
       return;
     }
 
-    if (nodes.some(s => this.touchedNodes.has(s.node) || !s.node.isConnected)) {
+    if (nodes.some(span => this.touchedNodes.has(span.node) || !span.node.isConnected)) {
       return;
     }
 
@@ -1149,14 +1285,14 @@ export class PriceFixerContent {
         ? this.createHighlight(match, newPriceText, roundedValue)
         : document.createTextNode(newPriceText);
 
-    const lca = this.commonAncestor(nodes.map(s => s.node));
-    const normalize = (s: string): string => s.replace(/[\s.,]/g, '');
+    const lca = this.commonAncestor(nodes.map(span => span.node));
+    const normalize = (text: string): string => text.replace(/[\s.,]/g, '');
 
     if (lca && normalize(lca.textContent || '') === normalize(match.originalText)) {
       // The element holds nothing but this price: swap its whole content so
       // the new text inherits the element's own styling (Amazon's symbol and
       // fraction spans are styled as superscripts — we must not land there).
-      const originals = Array.from(lca.childNodes).map(n => this.placementOf(n));
+      const originals = Array.from(lca.childNodes).map(child => this.placementOf(child));
       const inserted = replacement();
 
       for (const { node } of originals) {
@@ -1181,7 +1317,9 @@ export class PriceFixerContent {
     // rest of their text.
     const originals: Placement[] = [];
     const inserted: Node[] = [];
-    const host = nodes.find(s => /[\d۰-۹٠-٩]/.test(s.node.data.slice(s.from, s.to))) || nodes[0];
+    const host =
+      nodes.find(covered => DIGIT.test(covered.node.data.slice(covered.from, covered.to))) ||
+      nodes[0];
 
     for (const span of nodes) {
       const { node, from, to } = span;
@@ -1219,18 +1357,23 @@ export class PriceFixerContent {
     this.recordChange(match, newPriceText, roundedValue);
   }
 
+  /** Where a node sits now (parent and next sibling), so restore can put it back there. */
   private placementOf(node: Node): Placement {
     return { node, parent: node.parentNode as Node, next: node.nextSibling };
   }
 
+  /**
+   * The closest element containing all `nodes`, or null when that ancestor
+   * is not an element (e.g. a document fragment). `nodes` must not be empty.
+   */
   private commonAncestor(nodes: Node[]): Element | null {
     let ancestor: Node | null = nodes[0].parentNode;
 
     while (ancestor) {
-      const a = ancestor;
+      const candidate = ancestor;
 
-      if (nodes.every(n => a.contains(n))) {
-        return a.nodeType === Node.ELEMENT_NODE ? (a as Element) : null;
+      if (nodes.every(node => candidate.contains(node))) {
+        return candidate.nodeType === Node.ELEMENT_NODE ? (candidate as Element) : null;
       }
 
       ancestor = ancestor.parentNode;
@@ -1240,6 +1383,11 @@ export class PriceFixerContent {
   }
 
   /**
+   * Round every price inside one text node, in the current display mode.
+   * Returns true when the node was changed.
+   *
+   * Skipped when the node was already handled, is detached, has no
+   * currency marker, or matches one of the user's exclude patterns.
    * `checkAncestors` is false when the caller already walked down from a
    * vetted root (scan, compact element); mutations pass true.
    */
@@ -1262,7 +1410,7 @@ export class PriceFixerContent {
       }
     }
 
-    if (this.rules.excludePatterns.some(re => re.test(originalText))) {
+    if (this.rules.excludePatterns.some(pattern => pattern.test(originalText))) {
       return false;
     }
 
@@ -1279,6 +1427,11 @@ export class PriceFixerContent {
     return this.processReplaceMode(node, originalText, priceMatches);
   }
 
+  /**
+   * Replace mode: rewrite the text node's data in place, so no node is added
+   * or removed. Matches are applied from the end so earlier indexes stay
+   * valid. The original text is recorded for restore.
+   */
   private processReplaceMode(
     node: Text,
     originalText: string,
@@ -1313,6 +1466,12 @@ export class PriceFixerContent {
     return true;
   }
 
+  /**
+   * Highlight mode: replace the text node with plain text pieces and one
+   * highlight span per changed price ("Now $5.99!" → "Now ", <span>$6</span>,
+   * "!"). The original node is detached, not edited, and recorded so
+   * restore can put it back.
+   */
   private processHighlightMode(
     node: Text,
     originalText: string,
@@ -1334,11 +1493,11 @@ export class PriceFixerContent {
         continue;
       }
 
-      const newPriceText = PricePatterns.formatPrice(roundedValue, match);
-
       if (match.startIndex > lastIndex) {
         inserted.push(document.createTextNode(originalText.substring(lastIndex, match.startIndex)));
       }
+
+      const newPriceText = PricePatterns.formatPrice(roundedValue, match);
 
       inserted.push(this.createHighlight(match, newPriceText, roundedValue));
       this.recordChange(match, newPriceText, roundedValue);
@@ -1355,8 +1514,8 @@ export class PriceFixerContent {
 
     const placement = this.placementOf(node);
 
-    for (const n of inserted) {
-      parent.insertBefore(n, node);
+    for (const newNode of inserted) {
+      parent.insertBefore(newNode, node);
     }
 
     parent.removeChild(node);
@@ -1379,6 +1538,7 @@ export class PriceFixerContent {
     roundedValue: number
   ): HTMLElement {
     const diff = PricePatterns.priceDifference(match.value, roundedValue);
+
     const wrapper = document.createElement('span');
 
     wrapper.className = HIGHLIGHT_CLASS;
@@ -1389,6 +1549,7 @@ export class PriceFixerContent {
     return wrapper;
   }
 
+  /** Count a rounded price and add it to the list the popup shows. */
   private recordChange(match: PriceMatch, newPriceText: string, roundedValue: number): void {
     this.pricesRounded++;
     this.priceChanges.push({
@@ -1420,12 +1581,19 @@ export class PriceFixerContent {
     }
 
     this.records = this.records.filter(record =>
-      record.textNode ? record.textNode.isConnected : record.inserted.some(n => n.isConnected)
+      record.textNode ? record.textNode.isConnected : record.inserted.some(node => node.isConnected)
     );
   }
 
-  // ─── Dynamic content ────────────────────────────────────────────────
-
+  /**
+   * Handle content added or changed after the first scan (infinite scroll,
+   * client-side rendering, price updates).
+   *
+   * Each batch first checks whether the page turned into (or stopped being)
+   * a payment page, then scans added nodes and changed text. Batches that
+   * arrive while we are editing the DOM ourselves are ignored, and
+   * takeRecords() drops the mutations our own edits caused.
+   */
   private setupMutationObserver(): void {
     this.observer = new MutationObserver(mutations => {
       if (this.isProcessing) {
@@ -1497,8 +1665,11 @@ export class PriceFixerContent {
     });
   }
 
-  // ─── Messaging ──────────────────────────────────────────────────────
-
+  /**
+   * Listen for popup / background messages. Chrome answers through
+   * `sendResponse` (returning true keeps the channel open for async
+   * replies); Firefox's `browser` API expects a returned Promise instead.
+   */
   private setupMessageListener(): void {
     if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1515,6 +1686,7 @@ export class PriceFixerContent {
     }
   }
 
+  /** Snapshot of this tab's state, sent back to the popup in most replies. */
   private status(): Record<string, unknown> {
     return {
       enabled: this.isEnabled,
@@ -1537,6 +1709,15 @@ export class PriceFixerContent {
     };
   }
 
+  /**
+   * Run one popup / background action and reply exactly once.
+   *
+   * - `restore` pauses the site for the browser session; `reprocess`, and
+   *   enabling the site or the extension, lift that pause.
+   * - Actions that change a setting save it to storage, then rescan or
+   *   restore the page to match the new enabled state.
+   * - Unknown actions reply `{ error: 'Unknown action' }`.
+   */
   private handleMessage(rawMessage: unknown, sendResponse: (response: unknown) => void): void {
     const message = (rawMessage || {}) as {
       action?: string;
@@ -1640,6 +1821,7 @@ export class PriceFixerContent {
   private setGlobalEnabled(enabled: boolean): void {
     this.globalEnabled = enabled;
     this.saveSetting({ globalEnabled: enabled });
+
     if (enabled) {
       this.setSitePaused(false);
     }
@@ -1651,6 +1833,10 @@ export class PriceFixerContent {
     }
   }
 
+  /**
+   * Start over: undo every change, forget cached matches (rules or rounding
+   * may have changed) and scan the page again.
+   */
   private reprocessPage(): void {
     this.restoreOriginal();
     PricePatterns.clearCache();
@@ -1681,8 +1867,8 @@ export class PriceFixerContent {
         this.touchedNodes.delete(node);
       }
 
-      for (const n of record.inserted) {
-        n.parentNode?.removeChild(n);
+      for (const node of record.inserted) {
+        node.parentNode?.removeChild(node);
       }
 
       record.unitElement?.removeAttribute(UNIT_ATTR);
@@ -1694,6 +1880,10 @@ export class PriceFixerContent {
     this.observer?.takeRecords();
   }
 
+  /**
+   * Shut down for good (called on `pagehide`, see content/index.ts): stop
+   * observing and put the page back as it was.
+   */
   public destroy(): void {
     this.destroyed = true;
     if (this.observer) {

@@ -11,18 +11,14 @@ jobs:
     name: Test and Lint
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version-file: .nvmrc
           cache: 'npm'
 
       - name: Install dependencies
@@ -33,6 +29,12 @@ jobs:
 
       - name: Lint code
         run: npm run lint
+
+      - name: Lint CSS
+        run: npm run lint:css
+
+      - name: Check for unused CSS
+        run: npm run css:unused
 
       - name: Check formatting
         run: npm run format:check
@@ -59,7 +61,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version-file: .nvmrc
           cache: 'npm'
 
       - name: Install dependencies

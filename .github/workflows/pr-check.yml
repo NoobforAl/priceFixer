@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version-file: .nvmrc
           cache: 'npm'
 
       - name: Install dependencies
@@ -27,7 +27,7 @@ jobs:
       - name: Check for changes in source files
         id: changes
         run: |
-          if git diff --name-only origin/main...HEAD | grep -E '\.(ts|js|json)$'; then
+          if git diff --name-only origin/main...HEAD | grep -E '\.(ts|js|json|css|html)$'; then
             echo "source_changed=true" >> $GITHUB_OUTPUT
           else
             echo "source_changed=false" >> $GITHUB_OUTPUT
@@ -40,6 +40,14 @@ jobs:
       - name: Lint code
         if: steps.changes.outputs.source_changed == 'true'
         run: npm run lint
+
+      - name: Lint CSS
+        if: steps.changes.outputs.source_changed == 'true'
+        run: npm run lint:css
+
+      - name: Check for unused CSS
+        if: steps.changes.outputs.source_changed == 'true'
+        run: npm run css:unused
 
       - name: Check formatting
         if: steps.changes.outputs.source_changed == 'true'

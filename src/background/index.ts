@@ -182,6 +182,7 @@ class PriceFixerBackground {
           enabled: message.enabled ?? true,
           processedCount: message.processedCount || 0,
         });
+
         sendResponse({ success: true });
         break;
 
