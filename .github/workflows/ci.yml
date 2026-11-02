@@ -11,10 +11,6 @@ jobs:
     name: Test and Lint
     runs-on: ubuntu-latest
 
-    # Job-level so the Codecov step's `if` can see whether the secret is set.
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -46,10 +42,19 @@ jobs:
       - name: Run tests
         run: npm test -- --coverage
 
-      # Codecov rejects tokenless uploads, so the step is skipped until a
-      # CODECOV_TOKEN repository secret exists.
+      # Codecov rejects tokenless uploads, so the upload is skipped until a
+      # CODECOV_TOKEN repository secret exists. `secrets` can't be used in
+      # `if:`, and putting the token in job env would hand it to every step
+      # (npm ci runs third-party install scripts), so this step exposes only
+      # whether it is set.
+      - name: Check for Codecov token
+        id: codecov
+        env:
+          HAS_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
+        run: echo "has_token=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Upload coverage to Codecov
-        if: env.CODECOV_TOKEN != ''
+        if: steps.codecov.outputs.has_token == 'true'
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
