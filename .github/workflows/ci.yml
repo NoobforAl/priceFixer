@@ -11,6 +11,10 @@ jobs:
     name: Test and Lint
     runs-on: ubuntu-latest
 
+    # Job-level so the Codecov step's `if` can see whether the secret is set.
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -42,7 +46,10 @@ jobs:
       - name: Run tests
         run: npm test -- --coverage
 
+      # Codecov rejects tokenless uploads, so the step is skipped until a
+      # CODECOV_TOKEN repository secret exists.
       - name: Upload coverage to Codecov
+        if: env.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

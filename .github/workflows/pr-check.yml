@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+# The repository default token is read-only; the coverage comment needs to
+# write to the pull request.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   pr-check:
     name: Pull Request Checks
@@ -65,33 +71,46 @@ jobs:
         if: steps.changes.outputs.source_changed == 'true'
         uses: actions/github-script@v9
         with:
+          # One coverage comment per PR, found by its hidden marker and
+          # updated on every push instead of adding a new comment each time.
+          # Needs coverage/coverage-summary.json (the json-summary reporter in
+          # jest.config.js). Fork PRs get a read-only token: that error is
+          # logged, not fatal.
           script: |
             const fs = require('fs');
+            const marker = '<!-- pr-coverage-report -->';
 
-            // Read coverage summary if it exists
             try {
-              const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
-              const totalCoverage = coverage.total;
-              
-              const comment = `
-              ## 📊 Test Coverage Report
-              
-              | Metric | Percentage | Covered/Total |
-              |--------|------------|---------------|
-              | Lines | ${totalCoverage.lines.pct}% | ${totalCoverage.lines.covered}/${totalCoverage.lines.total} |
-              | Functions | ${totalCoverage.functions.pct}% | ${totalCoverage.functions.covered}/${totalCoverage.functions.total} |
-              | Branches | ${totalCoverage.branches.pct}% | ${totalCoverage.branches.covered}/${totalCoverage.branches.total} |
-              | Statements | ${totalCoverage.statements.pct}% | ${totalCoverage.statements.covered}/${totalCoverage.statements.total} |
-              
-              ${totalCoverage.lines.pct >= 80 ? '✅' : '⚠️'} Overall coverage: **${totalCoverage.lines.pct}%**
-              `;
-              
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
+              const { total } = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+              const row = (label, metric) =>
+                `| ${label} | ${metric.pct}% | ${metric.covered}/${metric.total} |`;
+              const body = [
+                marker,
+                '## 📊 Test Coverage Report',
+                '',
+                '| Metric | Percentage | Covered/Total |',
+                '| --- | --- | --- |',
+                row('Lines', total.lines),
+                row('Functions', total.functions),
+                row('Branches', total.branches),
+                row('Statements', total.statements),
+                '',
+                `${total.lines.pct >= 80 ? '✅' : '⚠️'} Overall coverage: **${total.lines.pct}%**`,
+              ].join('\n');
+
+              const target = {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: comment
-              });
+                issue_number: context.issue.number,
+              };
+              const comments = await github.paginate(github.rest.issues.listComments, target);
+              const existing = comments.find(comment => comment.body?.includes(marker));
+
+              if (existing) {
+                await github.rest.issues.updateComment({ ...target, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ ...target, body });
+              }
             } catch (error) {
-              console.log('No coverage report found or error reading it:', error.message);
+              console.log('Coverage comment skipped:', error.message);
             }
