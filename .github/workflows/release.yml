@@ -39,9 +39,9 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -76,13 +76,13 @@ jobs:
       - name: Lint Firefox package
         run: npx --yes web-ext lint --source-dir dist-firefox --warnings-as-errors=false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: price-fixer-chrome
           path: price-fixer-chrome.zip
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: price-fixer-firefox
           path: price-fixer-firefox.zip
@@ -96,13 +96,13 @@ jobs:
     needs: [build, publish-chrome, publish-firefox]
     if: ${{ always() && needs.build.result == 'success' }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: packages
           merge-multiple: true
 
       - name: Create release with packages
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Price Fixer ${{ needs.build.outputs.tag }}
           generate_release_notes: true
@@ -134,7 +134,7 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: steps.check.outputs.configured == 'true'
         with:
           name: price-fixer-chrome
@@ -177,10 +177,10 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.check.outputs.configured == 'true'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.check.outputs.configured == 'true'
         with:
           node-version-file: .nvmrc
@@ -218,7 +218,7 @@ jobs:
           fi
           exit "$code"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.check.outputs.configured == 'true'
         with:
           name: price-fixer-firefox-signed
