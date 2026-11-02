@@ -199,7 +199,7 @@ GitHub Actions workflows in `.github/workflows/`:
   packages via `scripts/package.js`)
 - `pr-check.yml` - PR validation
 - `security.yml` - Dependency audit + CodeQL
-- `outdated.yml` - Weekly check for newer package versions; keeps one "Package
+- `outdated.yml` - Monthly check for newer package versions; keeps one "Package
   updates available" issue open while updates exist
 - `release.yml` - On `v*` tags: validate, build, attach both zips to a GitHub
   release, then publish to the Chrome Web Store / AMO when the store secrets

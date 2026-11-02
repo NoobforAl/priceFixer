@@ -1,13 +1,13 @@
 name: Package updates
 
-# Weekly check for newer versions of the npm packages we use
+# Monthly check for newer versions of the npm packages we use
 # (scripts/check-outdated.js). The report goes to the run summary and to a
 # single tracking issue: opened or updated while updates exist, closed once
 # everything is up to date. Nothing is upgraded automatically.
 
 on:
   schedule:
-    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+    - cron: '0 6 1 * *' # 1st of every month, 06:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -25,10 +25,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: 'npm'
