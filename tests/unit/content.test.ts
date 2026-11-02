@@ -405,3 +405,42 @@ describe('additional currency/locale edge cases in the real DOM', () => {
     expect(document.querySelector('p')!.textContent).toBe('₹12,34,568');
   });
 });
+
+describe('per-site settings', () => {
+  afterEach(() => {
+    delete (globalThis as { chrome?: unknown }).chrome;
+  });
+
+  test('toggling a site keeps its saved mode and rounding step', async () => {
+    const domain = window.location.hostname.replace(/^www\./, '');
+    const sync: Record<string, unknown> = {
+      siteSettings: { [domain]: { enabled: true, mode: 'replace', roundingStep: 5 } },
+    };
+    let onMessage: ((message: unknown, sender: unknown, reply: () => void) => void) | null = null;
+
+    (globalThis as { chrome?: unknown }).chrome = {
+      storage: {
+        sync: {
+          get: async () => JSON.parse(JSON.stringify(sync)),
+          set: async (values: Record<string, unknown>) => Object.assign(sync, values),
+        },
+        onChanged: { addListener: () => undefined },
+      },
+      runtime: {
+        onMessage: {
+          addListener: (listener: typeof onMessage) => {
+            onMessage = listener;
+          },
+        },
+      },
+    };
+
+    await boot('<div>$5.99</div>');
+    onMessage!({ action: 'setSiteEnabled', enabled: false }, {}, () => undefined);
+    await tick();
+
+    expect(sync.siteSettings).toEqual({
+      [domain]: { enabled: false, mode: 'replace', roundingStep: 5 },
+    });
+  });
+});

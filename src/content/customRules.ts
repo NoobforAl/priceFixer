@@ -6,8 +6,10 @@
 export interface CustomRules {
   /** domain ("*" = every site) → CSS selectors whose contents are never touched */
   excludeSelectors: Record<string, string[]>;
+
   /** regex sources; a text node matching any of them is skipped */
   excludePatterns: string[];
+
   /** regex sources with an `(?<amount>…)` group; extra price formats */
   extraPatterns: string[];
 }
@@ -16,6 +18,7 @@ export interface CompiledRules {
   excludeSelector: string | null;
   excludePatterns: RegExp[];
   extraPatterns: RegExp[];
+
   /** entries that failed to compile, for the popup to show */
   errors: string[];
 }
@@ -27,13 +30,13 @@ export const EMPTY_RULES: CustomRules = {
 };
 
 export function normalizeRules(raw: unknown): CustomRules {
-  const r = (raw || {}) as Partial<CustomRules>;
-  const lines = (v: unknown): string[] =>
-    Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean) : [];
+  const input = (raw || {}) as Partial<CustomRules>;
+  const lines = (value: unknown): string[] =>
+    Array.isArray(value) ? value.map(item => String(item).trim()).filter(Boolean) : [];
   const selectors: Record<string, string[]> = {};
 
-  if (r.excludeSelectors && typeof r.excludeSelectors === 'object') {
-    for (const [domain, list] of Object.entries(r.excludeSelectors)) {
+  if (input.excludeSelectors && typeof input.excludeSelectors === 'object') {
+    for (const [domain, list] of Object.entries(input.excludeSelectors)) {
       const clean = lines(list);
 
       if (clean.length) {
@@ -44,16 +47,16 @@ export function normalizeRules(raw: unknown): CustomRules {
 
   return {
     excludeSelectors: selectors,
-    excludePatterns: lines(r.excludePatterns),
-    extraPatterns: lines(r.extraPatterns),
+    excludePatterns: lines(input.excludePatterns),
+    extraPatterns: lines(input.extraPatterns),
   };
 }
 
 function compile(source: string, flags: string, errors: string[]): RegExp | null {
   try {
     return new RegExp(source, flags);
-  } catch (e) {
-    errors.push(`${source}: ${(e as Error).message}`);
+  } catch (error) {
+    errors.push(`${source}: ${(error as Error).message}`);
 
     return null;
   }
@@ -76,7 +79,7 @@ export function compileRules(rules: CustomRules, domain: string): CompiledRules 
   const selectors = [
     ...(rules.excludeSelectors['*'] || []),
     ...(rules.excludeSelectors[domain] || []),
-  ].filter(s => validSelector(s, errors));
+  ].filter(selector => validSelector(selector, errors));
 
   const extraPatterns: RegExp[] = [];
 
@@ -86,18 +89,18 @@ export function compileRules(rules: CustomRules, domain: string): CompiledRules 
       continue;
     }
 
-    const re = compile(source, 'giu', errors);
+    const pattern = compile(source, 'giu', errors);
 
-    if (re) {
-      extraPatterns.push(re);
+    if (pattern) {
+      extraPatterns.push(pattern);
     }
   }
 
   return {
     excludeSelector: selectors.length ? selectors.join(', ') : null,
     excludePatterns: rules.excludePatterns
-      .map(p => compile(p, 'iu', errors))
-      .filter((r): r is RegExp => r !== null),
+      .map(source => compile(source, 'iu', errors))
+      .filter((pattern): pattern is RegExp => pattern !== null),
     extraPatterns,
     errors,
   };

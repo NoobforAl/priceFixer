@@ -7,8 +7,8 @@ NPM ?= npm
 
 .PHONY: help install dev dev-firefox dev-test dev-test-firefox firefox \
         build build-firefox build-all package \
-        test test-watch bench type-check lint lint-fix lint-addon format format-check fix \
-        validate check version clean
+        test test-watch bench type-check lint lint-fix lint-css css-unused lint-addon format format-check fix \
+        outdated validate check version clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -68,10 +68,16 @@ lint: ## ESLint, fails on any warning
 lint-fix: ## Auto-fix ESLint issues (braces, blank lines, ...)
 	$(NPM) run lint:fix
 
+lint-css: ## Stylelint on ui.css and the <style> blocks of popup.html / options.html
+	$(NPM) run lint:css
+
+css-unused: ## Report CSS selectors and variables no extension page uses
+	$(NPM) run css:unused
+
 lint-addon: build-firefox ## Mozilla's add-on linter on the Firefox build (as AMO runs it)
 	$(NPM) run lint:addon
 
-format: ## Format everything: ESLint --fix (braces, blank lines) + Prettier
+format: ## Format everything: ESLint --fix, Stylelint --fix, then Prettier
 	$(NPM) run format
 
 format-check: ## Check formatting without writing
@@ -79,10 +85,15 @@ format-check: ## Check formatting without writing
 
 fix: format ## Alias for format
 
-validate: ## CI check: type-check + lint + format-check + test
+validate: ## CI check: type-check + lint + CSS lint + unused CSS + format-check + test
 	$(NPM) run validate
 
 check: validate lint-addon build ## Everything before a commit: validate + add-on lint + both builds
+
+# --- Dependencies ----------------------------------------------------------
+
+outdated: ## List newer package versions: safe (same major) vs major updates
+	$(NPM) run deps:outdated
 
 # --- Release ---------------------------------------------------------------
 

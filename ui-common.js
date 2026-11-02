@@ -30,7 +30,6 @@ function normalizeDomain(input) {
   return /^[a-z0-9.-]+$/.test(value) ? value : '';
 }
 
-// ─── Theme ────────────────────────────────────────────────────────────
 // storage.sync.theme is 'system' (default), 'light' or 'dark'. The last
 // value is mirrored in localStorage so the page opens in the right theme
 // before storage answers.

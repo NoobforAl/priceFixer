@@ -10,24 +10,27 @@ also chain the steps (for example `make firefox` builds first).
 make install           # npm ci: exact versions from package-lock.json
 ```
 
-Node 20 or newer. On Windows, `make` comes with Git for Windows, Scoop
-(`scoop install make`) or Chocolatey.
+Node 24 (LTS) or newer; `.nvmrc` pins the version CI uses. On Windows, `make`
+comes with Git for Windows, Scoop (`scoop install make`) or Chocolatey.
 
 ## Everyday commands
 
-| Command            | What it does                                                    |
-| ------------------ | --------------------------------------------------------------- |
-| `make dev`         | Watch build for Chrome → `dist/`                                |
-| `make dev-firefox` | Watch build for Firefox → `dist-firefox/`                       |
-| `make firefox`     | Build, then open Firefox with the extension on the test page    |
-| `make dev-test`    | Build for Chrome and serve the test page at `localhost:3456`    |
-| `make test`        | Jest unit tests                                                 |
-| `make bench`       | Scan / mutation / rescan timings on a 3,000-card synthetic page |
-| `make format`      | Fix everything fixable: ESLint `--fix`, then Prettier           |
-| `make validate`    | What CI runs: type-check, lint, format check, tests             |
-| `make check`       | Before a commit: `validate` + add-on lint + both builds         |
-| `make build-all`   | Production builds → `dist/` and `dist-firefox/`                 |
-| `make package`     | Production builds zipped as `price-fixer-{chrome,firefox}.zip`  |
+| Command            | What it does                                                     |
+| ------------------ | ---------------------------------------------------------------- |
+| `make dev`         | Watch build for Chrome → `dist/`                                 |
+| `make dev-firefox` | Watch build for Firefox → `dist-firefox/`                        |
+| `make firefox`     | Build, then open Firefox with the extension on the test page     |
+| `make dev-test`    | Build for Chrome and serve the test page at `localhost:3456`     |
+| `make test`        | Jest unit tests                                                  |
+| `make bench`       | Scan / mutation / rescan timings on a 3,000-card synthetic page  |
+| `make format`      | Fix everything fixable: ESLint, Stylelint `--fix`, then Prettier |
+| `make lint-css`    | Stylelint on `ui.css` and the pages' `<style>` blocks            |
+| `make css-unused`  | CSS selectors and variables that no extension page uses          |
+| `make outdated`    | Newer package versions: safe (same major) vs major updates       |
+| `make validate`    | What CI runs: type-check, lint, CSS checks, format check, tests  |
+| `make check`       | Before a commit: `validate` + add-on lint + both builds          |
+| `make build-all`   | Production builds → `dist/` and `dist-firefox/`                  |
+| `make package`     | Production builds zipped as `price-fixer-{chrome,firefox}.zip`   |
 
 ## Loading the extension
 
@@ -62,6 +65,16 @@ ESLint and Prettier run on every commit (Husky + lint-staged) and in CI with
 - a blank line after a block, after declarations, and before `return`.
 
 All of it is auto-fixed by `make format`.
+
+CSS (`ui.css` and the `<style>` blocks in `popup.html` / `options.html`) is
+checked by Stylelint (`stylelint-config-standard`, see `stylelint.config.mjs`)
+and by `make css-unused`, which fails on selectors or `--variables` that no page
+or script uses. A class built from pieces at runtime cannot be found by that
+scan: add it to `SAFELIST` in `scripts/check-unused-css.js`.
+
+The build does not minify CSS or JS on purpose: zipped, minified CSS saves under
+1 KB, and AMO asks for the source code of minified files, which the release job
+does not upload.
 
 ## Adding a shop or a protected site
 

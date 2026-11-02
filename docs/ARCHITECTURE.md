@@ -160,19 +160,17 @@ when a global step is set.
 
 ## Supported currencies
 
-Symbols
-($ € £ ¥ ￥ ₹ ₽ ₩ ₺ ₪ ₫ … ﷼), ISO codes ("299 EUR", "USD 12.99", "RMB
-5999"), prefix words ("Rs. 499", "US$
-5") and suffix words (تومان, ریال, 元, 円, 원, zł, Kč, kr, lei, Ft, руб, грн,
-TL). Persian/Arabic digits, Arabic separators (٬ ٫), European formats
-(1.299,99), space thousands (1 299), the Swiss/French apostrophe thousands
-separator (`CHF 1'234.50`, straight `'` or typographic `’`), and Indian
-lakh/crore grouping (`₹1,23,456`, 2-digit groups before the final 3-digit group)
-are supported. Ranges, was/now offers, subscriptions and "starting at" phrases
-need no special patterns: each price in them is matched individually and the
-surrounding text is preserved. A leading minus sign (ASCII `-` or Unicode `−`
-U+2212) on a refund/negative amount is never part of the match, so it's always
-left exactly as-is.
+Symbols ($ € £ ¥ ￥ ₹ ₽ ₩ ₺ ₪ ₫ … ﷼), ISO codes ("299 EUR", "USD 12.99", "RMB
+5999"), prefix words ("Rs. 499", "US$ 5") and suffix words (تومان, ریال, 元, 円,
+원, zł, Kč, kr, lei, Ft, руб, грн, TL). Persian/Arabic digits, Arabic separators
+(٬ ٫), European formats (1.299,99), space thousands (1 299), the Swiss/French
+apostrophe thousands separator (`CHF 1'234.50`, straight `'` or typographic
+`’`), and Indian lakh/crore grouping (`₹1,23,456`, 2-digit groups before the
+final 3-digit group) are supported. Ranges, was/now offers, subscriptions and
+"starting at" phrases need no special patterns: each price in them is matched
+individually and the surrounding text is preserved. A leading minus sign (ASCII
+`-` or Unicode `−` U+2212) on a refund/negative amount is never part of the
+match, so it's always left exactly as-is.
 
 **Known limitation**: content inside a **shadow DOM** (open or closed) is not
 scanned — `MutationObserver` and `querySelectorAll` don't cross shadow
@@ -197,10 +195,12 @@ script also listens to `storage.onChanged` so other tabs follow.
 
 GitHub Actions workflows in `.github/workflows/`:
 
-- `ci.yml` - Main pipeline (lint, test, build on Node 20.x/22.x, packages via
-  `scripts/package.js`)
+- `ci.yml` - Main pipeline (lint, test, build on the Node version in `.nvmrc`,
+  packages via `scripts/package.js`)
 - `pr-check.yml` - PR validation
 - `security.yml` - Dependency audit + CodeQL
+- `outdated.yml` - Weekly check for newer package versions; keeps one "Package
+  updates available" issue open while updates exist
 - `release.yml` - On `v*` tags: validate, build, attach both zips to a GitHub
   release, then publish to the Chrome Web Store / AMO when the store secrets
   (`CHROME_*`, `AMO_JWT_*`) are configured; see the file header.

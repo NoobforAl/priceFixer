@@ -19,7 +19,7 @@ export class PricePatterns {
 
   /** User-defined patterns (see customRules.ts); each must capture `amount`. */
   public static setExtraPatterns(patterns: RegExp[]): void {
-    this.extraPatterns = patterns.filter(p => p.global);
+    this.extraPatterns = patterns.filter(pattern => pattern.global);
     this.clearCache();
   }
 
@@ -46,7 +46,7 @@ export class PricePatterns {
     } else if (/[.,]/.test(cleanStr)) {
       const sep = cleanStr.includes('.') ? '.' : ',';
       const parts = cleanStr.split(sep);
-      const allGroupsOfThree = parts.slice(1).every(p => p.length === 3);
+      const allGroupsOfThree = parts.slice(1).every(group => group.length === 3);
 
       if (parts.length > 2 || (parts.length === 2 && allGroupsOfThree)) {
         // 1.299 / 1,299 / 12.345.678 → thousand separators
@@ -217,20 +217,20 @@ export class PricePatterns {
   }
 
   public static iconAmountMatch(text: string): PriceMatch | null {
-    const m = text.match(this.ICON_AMOUNT_ANY);
+    const match = text.match(this.ICON_AMOUNT_ANY);
 
-    if (!m) {
+    if (!match) {
       return null;
     }
 
-    const start = text.indexOf(m[1]);
+    const start = text.indexOf(match[1]);
 
     return {
-      value: this.parseNumber(m[1]),
+      value: this.parseNumber(match[1]),
       currency: 'ICON',
-      originalText: m[1],
+      originalText: match[1],
       startIndex: start,
-      endIndex: start + m[1].length,
+      endIndex: start + match[1].length,
       pattern: 'iconAmount',
     };
   }
@@ -239,10 +239,10 @@ export class PricePatterns {
   public static mayContainPrice(text: string): boolean {
     return (
       CurrencyDetection.marker.test(text) ||
-      this.extraPatterns.some(p => {
-        p.lastIndex = 0;
+      this.extraPatterns.some(pattern => {
+        pattern.lastIndex = 0;
 
-        return p.test(text);
+        return pattern.test(text);
       })
     );
   }
@@ -329,6 +329,7 @@ export class PricePatterns {
     let groupSep = '';
     let decimalSep = '.';
     const spaceSep = ascii.match(/[ \u00a0\u202f]/)?.[0];
+
     // Swiss/French apostrophe thousands separator (' or ’)
     const apostropheSep = ascii.match(/['’]/)?.[0];
 
@@ -371,6 +372,7 @@ export class PricePatterns {
 
     const [intPart, decPart] = value.toString().split('.');
     let formatted = intPart;
+
     // Group thousands unless the page wrote a 4+ digit amount without any
     // separator ("RMB 9999", "1899元"): keep that style.
     const originalHadGroups = /[.,٬'’\u0020\u00a0\u202f][\d۰-۹٠-٩]{3}(?![\d۰-۹٠-٩])/.test(ascii);
@@ -391,7 +393,7 @@ export class PricePatterns {
       const isIndianGrouping =
         originalGroups.length >= 3 &&
         originalGroups[originalGroups.length - 1].length === 3 &&
-        originalGroups.slice(1, -1).every(g => g.length === 2);
+        originalGroups.slice(1, -1).every(group => group.length === 2);
 
       if (isIndianGrouping) {
         let rest = intPart.slice(0, -3);

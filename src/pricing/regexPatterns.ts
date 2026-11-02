@@ -19,6 +19,7 @@ import { pattern, regex } from 'regex';
 
 // Digits: ASCII, Persian (۰-۹) and Arabic-Indic (٠-٩)
 const digit = String.raw`[\d۰-۹٠-٩]`;
+
 // Separators: "." "," Arabic thousands (٬ U+066C) and decimal (٫ U+066B),
 // plus the Swiss/French apostrophe thousands separator (straight ' U+0027 and typographic ’ U+2019: "1'234.50").
 const groupSep = String.raw`[.,٬'’\x20\u00a0\u202f]`;
@@ -40,11 +41,13 @@ const amount = pattern`
 
 // Symbols that appear before the number ($5.99, € 5,99, £5, ￥99, ₺49)
 const prefixSymbol = pattern`[$€£¥￥₹₽₩₺₦₡₪₫₴₸₲₱₵₼₾₿﷼]`;
+
 // Symbols that appear after the number (5,99 €, 5.99€, 100₽, 49₺)
 const suffixSymbol = pattern`[€£₽₴₸₫₺﷼]`;
 
 // Currency words/abbreviations written before the number
 const prefixWord = pattern`Rs\.? | RM | R\$ | US\$ | CA\$ | AU\$ | NT\$ | HK\$ | S\$`;
+
 // Currency words written after the number
 const suffixWord = pattern`
   تومان | تومن | ریال | ﷼ |
@@ -84,6 +87,7 @@ export const RegexPatterns = {
     (?<amount> ${amount} ) \s*
     \b (?<code> ${ISO_CODES} ) \b
   `,
+
   // "USD 299", "EUR 12,99"
   currencyCodePrefix: regex('gi')`
     \b (?<code> ${ISO_CODES} ) \s*
@@ -154,10 +158,10 @@ export const PersianDigits = {
 
   convertToEnglish(str: string): string {
     return str.replace(this.converter, digit => {
-      const p = this.persian.indexOf(digit);
+      const persianIndex = this.persian.indexOf(digit);
 
-      if (p >= 0) {
-        return this.english[p];
+      if (persianIndex >= 0) {
+        return this.english[persianIndex];
       }
 
       return this.english[this.arabic.indexOf(digit)];
@@ -172,6 +176,6 @@ export const PersianDigits = {
       return str;
     }
 
-    return str.replace(/\d/g, d => table[Number(d)]);
+    return str.replace(/\d/g, digit => table[Number(digit)]);
   },
 };
